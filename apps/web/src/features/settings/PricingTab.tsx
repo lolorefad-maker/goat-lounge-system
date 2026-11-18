@@ -10,7 +10,7 @@ import { useT } from '../../i18n';
 import { api } from '../../lib/api';
 import { useFmt } from '../../lib/format';
 import type { SettingsBundle } from '../../lib/queries';
-import type { RawPackage, RawRule } from '../../lib/types';
+import type { RawPackage, RawRule, Station } from '../../lib/types';
 import { ChipGroup } from './CatalogTabs';
 
 interface RuleForm {
@@ -37,6 +37,112 @@ export function PricingTab({ data }: { data: SettingsBundle }) {
   const { busy, run } = useAction();
   const [rule, setRule] = useState<{ id: string | null; form: RuleForm } | null>(null);
   const [pkg, setPkg] = useState<{ id: string | null; form: { name: string; minutes: number; price: string; active: boolean; stationTypes: string[]; tiers: string[]; modes: string[] } } | null>(null);
+  const [stationModal, setStationModal] = useState<{ station: Station; single: string; multi: string; singleRuleId: string | null; multiRuleId: string | null } | null>(null);
+
+  const getStationRates = (station: Station) => {
+    let single: number | null = null;
+    let multi: number | null = null;
+    let singleRuleId: string | null = null;
+    let multiRuleId: string | null = null;
+
+    for (const r of data.rules) {
+      if (!r.active || (r.effect as { kind: string }).kind !== 'rate') continue;
+      const m = r.match as { stationIds?: string[]; modes?: string[] };
+      if (m.stationIds?.includes(station.id)) {
+        if (m.modes?.includes('single')) {
+          single = (r.effect as { perHour?: number }).perHour ?? null;
+          singleRuleId = r.id;
+        }
+        if (m.modes?.includes('multi')) {
+          multi = (r.effect as { perHour?: number }).perHour ?? null;
+          multiRuleId = r.id;
+        }
+      }
+    }
+    // Fallback to tier/type default
+    if (single == null) {
+      for (const r of data.rules) {
+        if (!r.active || (r.effect as { kind: string }).kind !== 'rate') continue;
+        const m = r.match as { stationIds?: string[]; modes?: string[]; tiers?: string[]; stationTypes?: string[] };
+        if (m.stationIds?.length) continue;
+        const tierMatch = !m.tiers?.length || m.tiers.includes(station.tier);
+        const typeMatch = !m.stationTypes?.length || m.stationTypes.includes(station.type);
+        const modeMatch = !m.modes?.length || m.modes.includes('single');
+        if (tierMatch && typeMatch && modeMatch && (r.effect as { perHour?: number }).perHour != null) {
+          single = (r.effect as { perHour?: number }).perHour!;
+          break;
+        }
+      }
+    }
+    if (multi == null) {
+      for (const r of data.rules) {
+        if (!r.active || (r.effect as { kind: string }).kind !== 'rate') continue;
+        const m = r.match as { stationIds?: string[]; modes?: string[]; tiers?: string[]; stationTypes?: string[] };
+        if (m.stationIds?.length) continue;
+        const tierMatch = !m.tiers?.length || m.tiers.includes(station.tier);
+        const typeMatch = !m.stationTypes?.length || m.stationTypes.includes(station.type);
+        const modeMatch = !m.modes?.length || m.modes.includes('multi');
+        if (tierMatch && typeMatch && modeMatch && (r.effect as { perHour?: number }).perHour != null) {
+          multi = (r.effect as { perHour?: number }).perHour!;
+          break;
+        }
+      }
+    }
+    return { single, multi, singleRuleId, multiRuleId };
+  };
+
+  const openStationPricing = (s: Station) => {
+    const rates = getStationRates(s);
+    setStationModal({
+      station: s,
+      single: rates.single != null ? String(f.toMajor(rates.single)) : '',
+      multi: rates.multi != null ? String(f.toMajor(rates.multi)) : '',
+      singleRuleId: rates.singleRuleId,
+      multiRuleId: rates.multiRuleId,
+    });
+  };
+
+  const saveStationPricing = async () => {
+    if (!stationModal) return;
+    const ok = await run(async () => {
+      const stationId = stationModal.station.id;
+      if (stationModal.single.trim()) {
+        const perHour = parseMoney(stationModal.single, f.decimals);
+        if (perHour != null && perHour >= 0) {
+          const ruleBody = {
+            name: `${stationModal.station.name} - فردي`,
+            priority: 10,
+            active: true,
+            match: { stationIds: [stationId], modes: ['single'] },
+            effect: { kind: 'rate', perHour },
+          };
+          if (stationModal.singleRuleId) {
+            await api('PUT', `/api/settings/rules/${stationModal.singleRuleId}`, ruleBody);
+          } else {
+            await api('POST', `/api/settings/rules`, ruleBody);
+          }
+        }
+      }
+      if (stationModal.multi.trim()) {
+        const perHour = parseMoney(stationModal.multi, f.decimals);
+        if (perHour != null && perHour >= 0) {
+          const ruleBody = {
+            name: `${stationModal.station.name} - زوجي`,
+            priority: 10,
+            active: true,
+            match: { stationIds: [stationId], modes: ['multi'] },
+            effect: { kind: 'rate', perHour },
+          };
+          if (stationModal.multiRuleId) {
+            await api('PUT', `/api/settings/rules/${stationModal.multiRuleId}`, ruleBody);
+          } else {
+            await api('POST', `/api/settings/rules`, ruleBody);
+          }
+        }
+      }
+    }, { success: t('common.saved') });
+    if (ok) setStationModal(null);
+  };
 
   const types = [...new Set(data.stations.map((s) => s.type))];
   const typeOpts = types.map((x) => ({ value: x, label: tk('types', x) }));
@@ -164,6 +270,42 @@ export function PricingTab({ data }: { data: SettingsBundle }) {
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Direct Station Pricing Card */}
+      <Card className="p-5">
+        <div className="mb-3">
+          <h3 className="font-semibold text-fg">🎮 تسعير الأجهزة المباشر (سعر الساعة فردي وزوجي)</h3>
+          <p className="text-xs text-muted">اضغط على أي جهاز لتحديد سعر ساعة الفردي والزوجي له مباشرة وبشكل مخصص:</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {data.stations.map((s) => {
+            const rates = getStationRates(s);
+            return (
+              <div key={s.id} className="flex items-center justify-between rounded-card border border-line bg-surface-2 p-3 hover:border-line-strong">
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-fg">{s.name}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                    <span className="rounded bg-accent/10 px-1.5 py-0.5 font-bold text-accent">
+                      فردي: {rates.single != null ? f.moneyC(rates.single) : '—'}
+                    </span>
+                    <span className="rounded bg-st-active/10 px-1.5 py-0.5 font-bold text-st-active">
+                      زوجي: {rates.multi != null ? f.moneyC(rates.multi) : '—'}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openStationPricing(s)}
+                  className="text-xs font-bold text-accent hover:bg-accent/10"
+                >
+                  <Pencil className="size-3.5 me-1" /> تحديد السعر
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
       <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-semibold">{t('settings.pricing')}</h3>
@@ -321,6 +463,53 @@ export function PricingTab({ data }: { data: SettingsBundle }) {
             </Field>
             <div className="sm:col-span-2">
               <Switch checked={pkg.form.active} onChange={(v) => setPkg({ ...pkg, form: { ...pkg.form, active: v } })} label={t('common.active')} />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {stationModal && (
+        <Modal
+          open
+          onOpenChange={(o) => !o && setStationModal(null)}
+          title={`تسعير جهاز ${stationModal.station.name}`}
+          footer={
+            <Button variant="primary" size="lg" loading={busy} onClick={saveStationPricing}>
+              {t('common.save')}
+            </Button>
+          }
+        >
+          <div className="flex flex-col gap-4">
+            <p className="text-xs text-muted">
+              حدد سعر ساعة اللعب لهذا الجهاز لوضع اللعب الفردي ووضع اللعب الزوجي:
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="سعر الساعة - فردي" htmlFor="sp-single">
+                <div className="relative flex items-center">
+                  <Input
+                    id="sp-single"
+                    dir="ltr"
+                    className="num pe-12 font-bold text-accent"
+                    placeholder="1.500"
+                    value={stationModal.single}
+                    onChange={(e) => setStationModal({ ...stationModal, single: e.target.value })}
+                  />
+                  <span className="pointer-events-none absolute end-3 text-xs text-muted">{f.currencyLabel}</span>
+                </div>
+              </Field>
+              <Field label="سعر الساعة - زوجي" htmlFor="sp-multi">
+                <div className="relative flex items-center">
+                  <Input
+                    id="sp-multi"
+                    dir="ltr"
+                    className="num pe-12 font-bold text-st-active"
+                    placeholder="2.000"
+                    value={stationModal.multi}
+                    onChange={(e) => setStationModal({ ...stationModal, multi: e.target.value })}
+                  />
+                  <span className="pointer-events-none absolute end-3 text-xs text-muted">{f.currencyLabel}</span>
+                </div>
+              </Field>
             </div>
           </div>
         </Modal>

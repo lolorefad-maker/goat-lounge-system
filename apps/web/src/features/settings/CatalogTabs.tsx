@@ -59,14 +59,117 @@ const emptyStation: StationForm = { name: '', type: 'ps5', tier: 'regular', zone
 
 export function StationsTab({ data }: { data: SettingsBundle }) {
   const { t, tk } = useT();
-  const [editing, setEditing] = useState<{ id: string | null; form: StationForm } | null>(null);
+  const f = useFmt();
+  const [editing, setEditing] = useState<{
+    id: string | null;
+    form: StationForm;
+    singlePrice: string;
+    multiPrice: string;
+    singleRuleId: string | null;
+    multiRuleId: string | null;
+  } | null>(null);
   const { busy, run } = useAction();
   const zones = [...new Set(data.stations.map((s) => s.zone).filter(Boolean))];
+
+  const getStationRates = (station: Station) => {
+    let single: number | null = null;
+    let multi: number | null = null;
+    let singleRuleId: string | null = null;
+    let multiRuleId: string | null = null;
+
+    for (const r of data.rules) {
+      if (!r.active || (r.effect as { kind: string }).kind !== 'rate') continue;
+      const m = r.match as { stationIds?: string[]; modes?: string[] };
+      if (m.stationIds?.includes(station.id)) {
+        if (m.modes?.includes('single')) {
+          single = (r.effect as { perHour?: number }).perHour ?? null;
+          singleRuleId = r.id;
+        }
+        if (m.modes?.includes('multi')) {
+          multi = (r.effect as { perHour?: number }).perHour ?? null;
+          multiRuleId = r.id;
+        }
+      }
+    }
+    // Fallback to tier/type default
+    if (single == null) {
+      for (const r of data.rules) {
+        if (!r.active || (r.effect as { kind: string }).kind !== 'rate') continue;
+        const m = r.match as { stationIds?: string[]; modes?: string[]; tiers?: string[]; stationTypes?: string[] };
+        if (m.stationIds?.length) continue;
+        const tierMatch = !m.tiers?.length || m.tiers.includes(station.tier);
+        const typeMatch = !m.stationTypes?.length || m.stationTypes.includes(station.type);
+        const modeMatch = !m.modes?.length || m.modes.includes('single');
+        if (tierMatch && typeMatch && modeMatch && (r.effect as { perHour?: number }).perHour != null) {
+          single = (r.effect as { perHour?: number }).perHour!;
+          break;
+        }
+      }
+    }
+    if (multi == null) {
+      for (const r of data.rules) {
+        if (!r.active || (r.effect as { kind: string }).kind !== 'rate') continue;
+        const m = r.match as { stationIds?: string[]; modes?: string[]; tiers?: string[]; stationTypes?: string[] };
+        if (m.stationIds?.length) continue;
+        const tierMatch = !m.tiers?.length || m.tiers.includes(station.tier);
+        const typeMatch = !m.stationTypes?.length || m.stationTypes.includes(station.type);
+        const modeMatch = !m.modes?.length || m.modes.includes('multi');
+        if (tierMatch && typeMatch && modeMatch && (r.effect as { perHour?: number }).perHour != null) {
+          multi = (r.effect as { perHour?: number }).perHour!;
+          break;
+        }
+      }
+    }
+    return { single, multi, singleRuleId, multiRuleId };
+  };
 
   const save = async () => {
     if (!editing) return;
     const body = { ...editing.form, maintenanceNote: editing.form.maintenanceNote || null };
-    const ok = await run(() => (editing.id ? api('PATCH', `/api/settings/stations/${editing.id}`, body) : api('POST', '/api/settings/stations', body)), { success: t('common.saved') });
+    const ok = await run(async () => {
+      const saved = editing.id
+        ? await api<{ id: string }>('PATCH', `/api/settings/stations/${editing.id}`, body)
+        : await api<{ id: string }>('POST', '/api/settings/stations', body);
+      const stationId = editing.id || saved.id;
+
+      // Save single price rule if entered
+      if (editing.singlePrice.trim()) {
+        const perHour = parseMoney(editing.singlePrice, f.decimals);
+        if (perHour != null && perHour >= 0) {
+          const ruleBody = {
+            name: `${editing.form.name} - فردي`,
+            priority: 10,
+            active: true,
+            match: { stationIds: [stationId], modes: ['single'] },
+            effect: { kind: 'rate', perHour },
+          };
+          if (editing.singleRuleId) {
+            await api('PUT', `/api/settings/rules/${editing.singleRuleId}`, ruleBody);
+          } else {
+            await api('POST', `/api/settings/rules`, ruleBody);
+          }
+        }
+      }
+
+      // Save multi price rule if entered
+      if (editing.multiPrice.trim()) {
+        const perHour = parseMoney(editing.multiPrice, f.decimals);
+        if (perHour != null && perHour >= 0) {
+          const ruleBody = {
+            name: `${editing.form.name} - زوجي`,
+            priority: 10,
+            active: true,
+            match: { stationIds: [stationId], modes: ['multi'] },
+            effect: { kind: 'rate', perHour },
+          };
+          if (editing.multiRuleId) {
+            await api('PUT', `/api/settings/rules/${editing.multiRuleId}`, ruleBody);
+          } else {
+            await api('POST', `/api/settings/rules`, ruleBody);
+          }
+        }
+      }
+    }, { success: t('common.saved') });
     if (ok) setEditing(null);
   };
 
@@ -98,7 +201,20 @@ export function StationsTab({ data }: { data: SettingsBundle }) {
 
   return (
     <Card className="p-5">
-      <Header title={t('settings.stations')} addLabel={t('settings.station.add')} onAdd={() => setEditing({ id: null, form: { ...emptyStation, sort: data.stations.length } })} />
+      <Header
+        title={t('settings.stations')}
+        addLabel={t('settings.station.add')}
+        onAdd={() =>
+          setEditing({
+            id: null,
+            form: { ...emptyStation, sort: data.stations.length },
+            singlePrice: '1.500',
+            multiPrice: '2.000',
+            singleRuleId: null,
+            multiRuleId: null,
+          })
+        }
+      />
       <p className="-mt-2 mb-4 text-xs text-faint">{t('settings.station.orderHint')}</p>
       <div className="flex flex-col gap-5">
         {groups.map(([zone, list]) => (
@@ -108,47 +224,66 @@ export function StationsTab({ data }: { data: SettingsBundle }) {
               <span className="num rounded-full bg-surface-3 px-2 text-xs font-medium text-faint">{list.length}</span>
             </h3>
             <div className="grid gap-2 sm:grid-cols-2">
-              {list.map((s, i) => (
-                <div key={s.id} className={clsx('flex items-stretch rounded-card border border-line bg-surface-2 hover:border-line-strong', !s.active && 'opacity-50')}>
-                  <button
-                    onClick={() => setEditing({ id: s.id, form: { ...s, maintenanceNote: s.maintenanceNote ?? '' } })}
-                    className="flex min-w-0 flex-1 items-center gap-3 rounded-card p-3 text-start"
-                  >
-                    <TypeIcon type={s.type} className="size-5 text-muted" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 font-medium">
-                        <span className="num">{s.name}</span>
-                        {s.tier === 'vip' && <VipBadge />}
-                        {s.maintenance && <span className="rounded-full bg-st-off/20 px-2 text-[11px] text-muted">{t('status.off')}</span>}
+              {list.map((s, i) => {
+                const rates = getStationRates(s);
+                return (
+                  <div key={s.id} className={clsx('flex items-stretch rounded-card border border-line bg-surface-2 hover:border-line-strong', !s.active && 'opacity-50')}>
+                    <button
+                      onClick={() =>
+                        setEditing({
+                          id: s.id,
+                          form: { ...s, maintenanceNote: s.maintenanceNote ?? '' },
+                          singlePrice: rates.single != null ? String(f.toMajor(rates.single)) : '',
+                          multiPrice: rates.multi != null ? String(f.toMajor(rates.multi)) : '',
+                          singleRuleId: rates.singleRuleId,
+                          multiRuleId: rates.multiRuleId,
+                        })
+                      }
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-card p-3 text-start"
+                    >
+                      <TypeIcon type={s.type} className="size-5 text-muted" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 font-medium">
+                          <span className="num">{s.name}</span>
+                          {s.tier === 'vip' && <VipBadge />}
+                          {s.maintenance && <span className="rounded-full bg-st-off/20 px-2 text-[11px] text-muted">{t('status.off')}</span>}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                          <span className="rounded bg-accent/10 px-1.5 py-0.5 font-bold text-accent">
+                            فردي: {rates.single != null ? f.moneyC(rates.single) : '—'}
+                          </span>
+                          <span className="rounded bg-st-active/10 px-1.5 py-0.5 font-bold text-st-active">
+                            زوجي: {rates.multi != null ? f.moneyC(rates.multi) : '—'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="truncate text-xs text-muted">{s.modes.map((m) => tk('modes', m)).join('، ')}</div>
+                      <Pencil className="size-4 text-faint" />
+                    </button>
+                    <div className="flex flex-col border-s border-line">
+                      <button
+                        type="button"
+                        disabled={busy || i === 0}
+                        onClick={() => move(s, -1)}
+                        aria-label={t('settings.station.moveUp', { name: s.name })}
+                        title={t('settings.station.moveUp', { name: s.name })}
+                        className="grid flex-1 place-items-center px-2.5 text-muted hover:bg-surface-3 hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent"
+                      >
+                        <ArrowUp className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || i === list.length - 1}
+                        onClick={() => move(s, 1)}
+                        aria-label={t('settings.station.moveDown', { name: s.name })}
+                        title={t('settings.station.moveDown', { name: s.name })}
+                        className="grid flex-1 place-items-center border-t border-line px-2.5 text-muted hover:bg-surface-3 hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent"
+                      >
+                        <ArrowDown className="size-4" />
+                      </button>
                     </div>
-                    <Pencil className="size-4 text-faint" />
-                  </button>
-                  <div className="flex flex-col border-s border-line">
-                    <button
-                      type="button"
-                      disabled={busy || i === 0}
-                      onClick={() => move(s, -1)}
-                      aria-label={t('settings.station.moveUp', { name: s.name })}
-                      title={t('settings.station.moveUp', { name: s.name })}
-                      className="grid flex-1 place-items-center px-2.5 text-muted hover:bg-surface-3 hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent"
-                    >
-                      <ArrowUp className="size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || i === list.length - 1}
-                      onClick={() => move(s, 1)}
-                      aria-label={t('settings.station.moveDown', { name: s.name })}
-                      title={t('settings.station.moveDown', { name: s.name })}
-                      className="grid flex-1 place-items-center border-t border-line px-2.5 text-muted hover:bg-surface-3 hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent"
-                    >
-                      <ArrowDown className="size-4" />
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         ))}
@@ -217,6 +352,39 @@ export function StationsTab({ data }: { data: SettingsBundle }) {
                 options={['single', 'multi', 'standard'].map((m) => ({ value: m, label: tk('modes', m) }))}
               />
             </Field>
+
+            <div className="rounded-lg border border-line bg-surface-2 p-3 sm:col-span-2">
+              <div className="mb-2 text-xs font-bold text-accent">💰 تحديد سعر الساعة لهذا الجهاز مباشرة</div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="سعر الساعة - فردي" htmlFor="s-single">
+                  <div className="relative flex items-center">
+                    <Input
+                      id="s-single"
+                      dir="ltr"
+                      className="num pe-12 font-bold"
+                      placeholder="مثلاً 1.500"
+                      value={editing.singlePrice}
+                      onChange={(e) => setEditing({ ...editing, singlePrice: e.target.value })}
+                    />
+                    <span className="pointer-events-none absolute end-3 text-xs text-muted">{f.currencyLabel}</span>
+                  </div>
+                </Field>
+                <Field label="سعر الساعة - زوجي" htmlFor="s-multi">
+                  <div className="relative flex items-center">
+                    <Input
+                      id="s-multi"
+                      dir="ltr"
+                      className="num pe-12 font-bold"
+                      placeholder="مثلاً 2.000"
+                      value={editing.multiPrice}
+                      onChange={(e) => setEditing({ ...editing, multiPrice: e.target.value })}
+                    />
+                    <span className="pointer-events-none absolute end-3 text-xs text-muted">{f.currencyLabel}</span>
+                  </div>
+                </Field>
+              </div>
+            </div>
+
             <div className="flex flex-col gap-2 sm:col-span-2">
               <Switch checked={editing.form.maintenance} onChange={(v) => setEditing({ ...editing, form: { ...editing.form, maintenance: v } })} label={t('settings.station.maintenance')} />
               {editing.form.maintenance && (
