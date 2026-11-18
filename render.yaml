@@ -12,7 +12,7 @@ services:
     startCommand: npm start
     healthCheckPath: /api/health
     # Deploy updates when you choose (shop closed), not automatically mid-shift.
-    autoDeploy: false
+    autoDeploy: true
     # Keep exactly one instance: the scheduler (day close, no-shows, charged controllers) runs inside it.
     numInstances: 1
     envVars:
