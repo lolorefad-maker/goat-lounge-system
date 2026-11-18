@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node -e \"import('node:fs').then(fs => { if (fs.existsSync('dist/index.html')) { console.log('✓ Prebuilt web dist found, skipping vite build to save RAM.'); } else { import('node:child_process').then(cp => cp.execSync('vite build', { stdio: 'inherit' })); } });\"",
+    "build:clean": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"

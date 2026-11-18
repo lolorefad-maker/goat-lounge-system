@@ -5,8 +5,8 @@ services:
     runtime: node
     region: frankfurt
     plan: free
-    buildCommand: export NODE_OPTIONS="--max-old-space-size=384" && npm ci --prefer-offline --no-audit --no-fund && npm run build -w @lounge/web
-    startCommand: npm start
+    buildCommand: npm ci --omit=dev --prefer-offline --no-audit --no-fund
+    startCommand: node apps/server/dist/index.js
     healthCheckPath: /api/health
     autoDeploy: true
     numInstances: 1
@@ -14,7 +14,7 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=384"
+        value: "--max-old-space-size=256"
       - key: LOUNGE_MODE
         value: cloud
       - key: DATABASE_URL

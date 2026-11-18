@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/index.ts",
-    "start": "tsx src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "start": "node -e \"import('node:fs').then(fs => { const cmd = fs.existsSync('dist/index.js') ? 'node dist/index.js' : 'tsx src/index.ts'; import('node:child_process').then(cp => cp.execSync(cmd, { stdio: 'inherit' })); });\"",
+    "build": "node -e \"import('esbuild').then(async (es) => { import('node:fs').then(async (fs) => { const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); const external = Object.keys(pkg.dependencies || {}).filter(d => d !== '@lounge/core'); await es.build({ entryPoints: ['src/index.ts'], bundle: true, platform: 'node', format: 'esm', target: 'node22', outfile: 'dist/index.js', external }); console.log('✓ Server bundled successfully'); }); });\"",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json",
     "db:generate": "drizzle-kit generate"

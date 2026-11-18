@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface Config {
   port: number;
@@ -39,7 +40,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const dataDir = path.resolve(env.LOUNGE_DATA_DIR ?? path.join(process.cwd(), '.data'));
   mkdirSync(dataDir, { recursive: true });
   const mode = env.LOUNGE_MODE === 'cloud' ? 'cloud' : 'local';
-  const webDist = env.LOUNGE_WEB_DIST ?? path.resolve(process.cwd(), '../web/dist');
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidateDirs = [
+    env.LOUNGE_WEB_DIST,
+    path.resolve(process.cwd(), 'apps/web/dist'),
+    path.resolve(process.cwd(), '../web/dist'),
+    path.resolve(here, '../../web/dist'),
+    path.resolve(here, '../../../apps/web/dist'),
+    path.resolve(here, '../web/dist'),
+  ];
+  const webDist = candidateDirs.find((p) => p && existsSync(path.join(p, 'index.html'))) ?? null;
 
   return {
     port: Number(env.PORT ?? 4000),
@@ -48,7 +58,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     databaseUrl: env.DATABASE_URL || null,
     jwtSecret: env.JWT_SECRET || loadOrCreateSecret(dataDir),
     mode,
-    webDist: existsSync(webDist) ? webDist : null,
+    webDist,
     // Demo data only where it is safe: on by default locally, off by default online.
     seedDemo: env.LOUNGE_SEED_DEMO ? env.LOUNGE_SEED_DEMO !== 'false' : mode === 'local',
     schedulerIntervalMs: Number(env.LOUNGE_TICK_MS ?? 10_000),

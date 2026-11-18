@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { drizzle as drizzlePg, type NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -13,7 +14,14 @@ export type Tx = Parameters<Parameters<DB['transaction']>[0]>[0];
 /** Anything that can run queries: the db itself or an open transaction. */
 export type Q = DB | Tx;
 
-const migrationsFolder = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../drizzle');
+const here = path.dirname(fileURLToPath(import.meta.url));
+const possibleFolders = [
+  path.resolve(here, '../../drizzle'),
+  path.resolve(here, '../drizzle'),
+  path.resolve(process.cwd(), 'apps/server/drizzle'),
+  path.resolve(process.cwd(), 'drizzle'),
+];
+const migrationsFolder = possibleFolders.find((f) => existsSync(f)) || possibleFolders[0]!;
 
 export interface Database {
   db: DB;
