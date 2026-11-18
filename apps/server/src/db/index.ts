@@ -1,10 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import { drizzle as drizzlePg, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate as migratePg } from 'drizzle-orm/node-postgres/migrator';
-import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
-import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator';
 import pg from 'pg';
 import * as schema from './schema';
 
@@ -36,6 +33,11 @@ export async function openDatabase(opts: { databaseUrl: string | null; dataDir: 
     await migratePg(db, { migrationsFolder });
     return { db, driver: 'pg', close: () => pool.end() };
   }
+
+  // Lazy-load PGlite so cloud deployments (Postgres) don't load WebAssembly binary into memory
+  const { PGlite } = await import('@electric-sql/pglite');
+  const { drizzle: drizzlePglite } = await import('drizzle-orm/pglite');
+  const { migrate: migratePglite } = await import('drizzle-orm/pglite/migrator');
 
   const client = opts.dataDir ? new PGlite(path.join(opts.dataDir, 'pgdata')) : new PGlite();
   const db = drizzlePglite({ client, schema });
