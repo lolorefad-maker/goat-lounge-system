@@ -1,7 +1,7 @@
 import type { Dict } from './ar';
 
 export const en: Dict = {
-  app: { name: 'Habeedko', tagline: 'Gaming lounge' },
+  app: { name: 'GOAT Gaming', tagline: 'PlayStation & Gaming Lounge' },
   nav: { floor: 'Floor', cafe: 'Cafeteria', controllers: 'Controllers', reservations: 'Bookings', stock: 'Stock', reports: 'Ledger', settings: 'Settings', rewards: 'Rewards', customers: 'Customer numbers', customersShort: 'Numbers' },
   ledger: {
     accountantTook: 'Taken by the accountant', deleteTitle: 'Confirm delete', deleteConfirm: 'Confirm delete',

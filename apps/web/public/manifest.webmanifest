@@ -1,7 +1,7 @@
 {
-  "name": "Habeedko",
-  "short_name": "Habeedko",
-  "description": "إدارة صالة Habeedko: الأجهزة، الكافيتيريا، الحجوزات، المخزون والجرد",
+  "name": "GOAT Gaming Center",
+  "short_name": "GOAT Gaming",
+  "description": "إدارة صالة GOAT Gaming Center: الأجهزة، الكافيتيريا، الحجوزات، المخزون والجرد",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "/",

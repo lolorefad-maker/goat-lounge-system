@@ -45,6 +45,9 @@ export const StationCard = memo(function StationCard({
   controllers,
   onOpen,
   onTogglePause,
+  onQuickStart,
+  onQuickExtend,
+  onQuickCheckout,
 }: {
   view: StationView;
   rateLabel: string | null;
@@ -53,6 +56,9 @@ export const StationCard = memo(function StationCard({
   onOpen: (stationId: string) => void;
   /** One-tap pause / resume right on the card (staff who can manage sessions). */
   onTogglePause?: (view: StationView) => void;
+  onQuickStart?: (station: StationView['station'], kind: 'open' | 'fixed', minutes?: number) => void;
+  onQuickExtend?: (sessionId: string, currentPlanned: number | null, playedMinutes: number, addMinutes: number) => void;
+  onQuickCheckout?: (sessionId: string) => void;
 }) {
   const { t, tk } = useT();
   const f = useFmt();
@@ -233,6 +239,72 @@ export const StationCard = memo(function StationCard({
         >
           {paused ? <Play className="size-4 fill-current" aria-hidden /> : <Pause className="size-4 fill-current" aria-hidden />}
         </button>
+      )}
+
+      {/* Quick Start Buttons for Free Stations */}
+      {status === 'free' && onQuickStart && (
+        <div className="mt-1.5 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onQuickStart(station, 'open')}
+            className="flex h-7 flex-1 items-center justify-center rounded-lg bg-surface-2 border border-line text-[11px] font-bold text-fg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors"
+            title="بدء جلسة وقت مفتوح بنقرة واحدة"
+          >
+            مفتوح
+          </button>
+          <button
+            type="button"
+            onClick={() => onQuickStart(station, 'fixed', 60)}
+            className="flex h-7 flex-1 items-center justify-center rounded-lg bg-surface-2 border border-line text-[11px] font-bold text-fg hover:bg-accent hover:text-white hover:border-accent transition-colors"
+            title="بدء جلسة 1 ساعة بنقرة واحدة"
+          >
+            ساعة
+          </button>
+          <button
+            type="button"
+            onClick={() => onQuickStart(station, 'fixed', 120)}
+            className="flex h-7 flex-1 items-center justify-center rounded-lg bg-surface-2 border border-line text-[11px] font-bold text-fg hover:bg-accent hover:text-white hover:border-accent transition-colors"
+            title="بدء جلسة ساعتين بنقرة واحدة"
+          >
+            ساعتين
+          </button>
+        </div>
+      )}
+
+      {/* Quick Extend & Checkout for Busy Stations */}
+      {busy && session && (
+        <div className="mt-1.5 flex items-center gap-1">
+          {onQuickExtend && (
+            <>
+              <button
+                type="button"
+                onClick={() => onQuickExtend(session.id, session.plannedMinutes, Math.ceil((live?.playedMs ?? 0) / 60000), 30)}
+                className="flex h-7 flex-1 items-center justify-center rounded-lg bg-surface-2 border border-line text-[11px] font-bold text-fg hover:bg-amber-600 hover:text-white hover:border-amber-600 transition-colors"
+                title="تمديد 30 دقيقة"
+              >
+                +30 د
+              </button>
+              <button
+                type="button"
+                onClick={() => onQuickExtend(session.id, session.plannedMinutes, Math.ceil((live?.playedMs ?? 0) / 60000), 60)}
+                className="flex h-7 flex-1 items-center justify-center rounded-lg bg-surface-2 border border-line text-[11px] font-bold text-fg hover:bg-amber-600 hover:text-white hover:border-amber-600 transition-colors"
+                title="تمديد 1 ساعة"
+              >
+                +1 س
+              </button>
+            </>
+          )}
+          {onQuickCheckout && (
+            <button
+              type="button"
+              onClick={() => onQuickCheckout(session.id)}
+              className="flex h-7 flex-1 items-center justify-center rounded-lg bg-emerald-600/15 border border-emerald-500/30 text-[11px] font-bold text-emerald-600 hover:bg-emerald-600 hover:text-white transition-colors"
+              title="إنهاء الجلسة والمحاسبة"
+            >
+              حساب
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

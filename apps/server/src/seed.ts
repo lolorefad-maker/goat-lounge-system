@@ -40,11 +40,11 @@ export async function seedIfEmpty(db: DB, opts: { demo: boolean; owner?: { name:
   settings.checkout.refundApprovalAbove = 2000;
 
   await db.transaction(async (tx) => {
-    await tx.insert(organizations).values({ id: orgId, name: 'Habeedko' });
+    await tx.insert(organizations).values({ id: orgId, name: 'GOAT Gaming Center' });
     await tx.insert(branches).values({
       id: branchId,
       orgId,
-      name: 'Habeedko',
+      name: 'GOAT Gaming Center',
       timezone: 'Asia/Amman',
       currency: 'JOD',
       currencyDecimals: 3,

@@ -1,6 +1,6 @@
 /** Arabic (default). Short, plain Modern Standard Arabic; buttons are verbs. */
 export const ar = {
-  app: { name: 'Habeedko', tagline: 'صالة ألعاب' },
+  app: { name: 'GOAT Gaming', tagline: 'مركز ألعاب وبلايستيشن' },
   nav: {
     floor: 'الصالة',
     cafe: 'كافيتيريا',

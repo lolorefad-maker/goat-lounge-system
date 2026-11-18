@@ -112,6 +112,29 @@ export function AppShell() {
               {floor.data && <BusinessDay day={floor.data.day} />}
             </div>
           </div>
+          {/* Quick links to GOAT Ecosystem */}
+          <div className="hidden items-center gap-1.5 sm:flex">
+            <a
+              href="https://goat-points.pages.dev/admin"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 rounded-full border border-line bg-surface-2 px-2.5 py-1 text-xs font-semibold text-fg hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-500 transition-colors"
+              title="لوحة تحكم نقاط وولاء العملاء"
+            >
+              <span>💎</span>
+              <span className="hidden md:inline">النقاط</span>
+            </a>
+            <a
+              href="https://goat-gaming.pages.dev/admin"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 rounded-full border border-line bg-surface-2 px-2.5 py-1 text-xs font-semibold text-fg hover:border-blue-500/50 hover:bg-blue-500/10 hover:text-blue-500 transition-colors"
+              title="لوحة تحكم بطولات GOAT"
+            >
+              <span>🏆</span>
+              <span className="hidden md:inline">البطولات</span>
+            </a>
+          </div>
           <ShiftPill />
           <SoundToggle />
           <ConnectionDot status={conn} />

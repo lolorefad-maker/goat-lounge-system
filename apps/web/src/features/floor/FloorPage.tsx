@@ -150,6 +150,56 @@ export function FloorPage() {
   );
   const canPause = can.manageSessions(role);
 
+  const quickStart = useCallback(
+    async (station: StationView['station'], kind: 'open' | 'fixed', minutes?: number) => {
+      try {
+        const readyControllerIds = (floor.data?.controllers ?? [])
+          .filter((c) => c.stationId === station.id && c.status === 'ready')
+          .map((c) => c.id);
+
+        await post('/api/sessions', {
+          stationId: station.id,
+          mode: station.modes[0] ?? 'single',
+          kind,
+          plannedMinutes: kind === 'fixed' ? (minutes ?? 60) : null,
+          packageId: null,
+          label: null,
+          customerPhone: null,
+          controllerIds: readyControllerIds,
+        });
+        toast.success(`تم تشغيل ${station.name} (${kind === 'fixed' ? `${minutes} دقيقة` : 'مفتوح'}) ✓`);
+      } catch (err) {
+        toastError(err);
+      }
+    },
+    [floor.data],
+  );
+
+  const quickExtend = useCallback(
+    async (sessionId: string, currentPlanned: number | null, playedMinutes: number, addMinutes: number) => {
+      try {
+        const nextPlanned = currentPlanned ? currentPlanned + addMinutes : playedMinutes + addMinutes;
+        await post(`/api/sessions/${sessionId}/plan`, { plannedMinutes: nextPlanned });
+        toast.success(`تم تمديد الوقت +${addMinutes} دقيقة ✓`);
+      } catch (err) {
+        toastError(err);
+      }
+    },
+    [],
+  );
+
+  const quickCheckout = useCallback(
+    async (sessionId: string) => {
+      try {
+        await post(`/api/sessions/${sessionId}/action`, { type: 'end' });
+        setCheckoutId(sessionId);
+      } catch (err) {
+        toastError(err);
+      }
+    },
+    [],
+  );
+
   const controllersByStation = useMemo(() => {
     const map = new Map<string, number[]>();
     for (const c of floor.data?.controllers ?? []) {
@@ -321,6 +371,9 @@ export function FloorPage() {
                   controllers={controllersByStation.get(v.station.id) ?? NONE}
                   onOpen={open}
                   onTogglePause={canPause ? togglePause : undefined}
+                  onQuickStart={canPause ? quickStart : undefined}
+                  onQuickExtend={canPause ? quickExtend : undefined}
+                  onQuickCheckout={canPause ? quickCheckout : undefined}
                 />
               ))}
             </div>
