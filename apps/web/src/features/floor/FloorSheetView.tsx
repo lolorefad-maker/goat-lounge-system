@@ -549,88 +549,16 @@ export function FloorSheetView({
                           </button>
                         </div>
                       ) : (
-                        <div className="flex flex-col items-center justify-center gap-1.5 py-0.5">
-                          {/* Mode Choice: فردي / زوجي / GTA 6 */}
-                          <div className="flex items-center rounded-md border border-line-strong bg-surface-2 p-0.5 text-[10px] shadow-xs">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedModes((prev) => ({ ...prev, [s.id]: 'single' }))}
-                              className={clsx(
-                                'flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all',
-                                selectedMode === 'single'
-                                  ? 'bg-blue-600 text-white shadow-xs'
-                                  : 'text-muted hover:text-fg hover:bg-surface-3',
-                              )}
-                              title={singleRateQuote ? `سعر الساعة: ${f.rate(singleRateQuote.perHour)}` : 'فردي'}
-                            >
-                              <User className="size-2.5" />
-                              <span>فردي</span>
-                              {singleRateQuote && <span className="font-mono text-[9px] opacity-80 font-normal">({f.rate(singleRateQuote.perHour)})</span>}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedModes((prev) => ({ ...prev, [s.id]: 'multi' }))}
-                              className={clsx(
-                                'flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all',
-                                selectedMode === 'multi'
-                                  ? 'bg-purple-600 text-white shadow-xs'
-                                  : 'text-muted hover:text-fg hover:bg-surface-3',
-                              )}
-                              title={multiRateQuote ? `سعر الساعة: ${f.rate(multiRateQuote.perHour)}` : 'زوجي'}
-                            >
-                              <Users className="size-2.5" />
-                              <span>زوجي</span>
-                              {multiRateQuote && <span className="font-mono text-[9px] opacity-80 font-normal">({f.rate(multiRateQuote.perHour)})</span>}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedModes((prev) => ({ ...prev, [s.id]: 'gta6' }))}
-                              className={clsx(
-                                'flex items-center gap-0.5 rounded px-1.5 py-0.5 font-black transition-all',
-                                selectedMode === 'gta6'
-                                  ? 'bg-amber-600 text-white shadow-xs'
-                                  : 'text-amber-700 dark:text-amber-400 hover:text-fg hover:bg-surface-3',
-                              )}
-                              title="ساعة GTA 6 بـ 2.500 د.أ ثابتة على كل الأجهزة"
-                            >
-                              <Gamepad2 className="size-2.5" />
-                              <span>GTA 6</span>
-                              <span className="font-mono text-[9px] font-bold opacity-90">(2.50)</span>
-                            </button>
-                          </div>
-
-                          {/* Quick Start Buttons */}
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => onQuickStart(s, 'open', undefined, selectedMode)}
-                              className="inline-flex h-7 items-center gap-1 rounded bg-emerald-600 px-2 text-[11px] font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
-                              title={`بدء وقت مفتوح (${selectedMode === 'gta6' ? 'GTA 6' : selectedMode === 'multi' ? 'زوجي' : 'فردي'})`}
-                            >
-                              <Play className="size-3 fill-current" />
-                              <span>بدء مفتوح</span>
-                            </button>
-                            <button
-                              onClick={() => onQuickStart(s, 'fixed', 60, selectedMode)}
-                              className="inline-flex h-7 items-center rounded border border-emerald-600/30 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20"
-                              title={`تشغيل 1 ساعة (${selectedMode === 'multi' ? 'زوجي' : 'فردي'})`}
-                            >
-                              1 س
-                            </button>
-                            <button
-                              onClick={() => onQuickStart(s, 'fixed', 120, selectedMode)}
-                              className="inline-flex h-7 items-center rounded border border-emerald-600/30 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20"
-                              title={`تشغيل ساعتين (${selectedMode === 'multi' ? 'زوجي' : 'فردي'})`}
-                            >
-                              2 س
-                            </button>
-                            <button
-                              onClick={() => setStartModalStation({ station: s, defaultMode: selectedMode })}
-                              className="inline-flex h-7 items-center rounded border border-line bg-surface-2 px-1 text-[10px] font-bold text-muted hover:text-fg hover:border-accent"
-                              title="بدء مخصص..."
-                            >
-                              ...
-                            </button>
-                          </div>
+                        <div className="flex items-center justify-center py-1">
+                          <button
+                            type="button"
+                            onClick={() => setStartModalStation({ station: s, defaultMode: 'single' })}
+                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 text-xs font-black text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
+                            title="بدء تشغيل الجهاز واختيار نوع اللعبة (فردي / زوجي / GTA 6)"
+                          >
+                            <Play className="size-3.5 fill-current" />
+                            <span>بدء اللعب ⏱️</span>
+                          </button>
                         </div>
                       )}
                     </td>
@@ -1246,6 +1174,8 @@ function QuickStartCustomModal({
   const [busy, setBusy] = useState(false);
 
   const quote = rateNow(ctx, station, mode, now);
+  const singleRateQuote = rateNow(ctx, station, 'single', now);
+  const multiRateQuote = rateNow(ctx, station, 'multi', now);
   const simulatedStartTime = now - startedMinutesAgo * 60_000;
 
   const handleStart = async () => {
@@ -1264,65 +1194,112 @@ function QuickStartCustomModal({
     }
   };
 
+  const handleQuickStartDirect = async (chosenMode: string) => {
+    setBusy(true);
+    try {
+      await onStart(
+        station,
+        'open',
+        undefined,
+        chosenMode,
+        startedMinutesAgo > 0 ? startedMinutesAgo : undefined,
+      );
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <Modal open onOpenChange={(o) => !o && onClose()} title={`تشغيل جهاز: ${station.name}`} size="sm">
+    <Modal open onOpenChange={(o) => !o && onClose()} title={`تشغيل جهاز: ${station.name}`} size="md">
       <div className="flex flex-col gap-4 font-sans text-xs">
         {/* Mode Selector */}
         <div>
-          <label className="mb-1.5 block font-bold text-fg">اختر نوع اللعب:</label>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
+          <label className="mb-2 block font-black text-sm text-fg">شو بده يلعب الزبون؟ (اختر نوع اللعب):</label>
+          <div className="grid grid-cols-3 gap-2.5">
+            {/* Single Card */}
+            <div
               onClick={() => setMode('single')}
               className={clsx(
-                'flex flex-col items-center justify-center rounded-lg border p-2.5 transition-all text-center',
+                'flex flex-col items-center justify-between rounded-xl border-2 p-3 transition-all cursor-pointer text-center relative shadow-xs',
                 mode === 'single'
-                  ? 'border-blue-600 bg-blue-500/10 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/20 shadow-xs'
-                  : 'border-line bg-surface-2 text-muted hover:border-line-strong',
+                  ? 'border-blue-600 bg-blue-500/10 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/30'
+                  : 'border-line bg-surface-2 text-muted hover:border-line-strong hover:bg-surface-3',
               )}
             >
-              <User className="size-5 mb-1" />
-              <span className="text-xs font-bold">فردي</span>
-              {station.modes.includes('single') && (
-                <span className="font-mono text-[11px] opacity-80">
-                  {rateNow(ctx, station, 'single', now) ? f.rate(rateNow(ctx, station, 'single', now)!.perHour) : ''}
-                </span>
-              )}
-            </button>
+              <User className="size-6 mb-1 text-blue-600" />
+              <span className="text-sm font-black text-fg">فردي</span>
+              <span className="font-mono text-xs font-semibold my-1 text-muted">
+                {singleRateQuote ? f.rate(singleRateQuote.perHour) : '2.000 د.أ'}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleQuickStartDirect('single');
+                }}
+                className="mt-1 w-full rounded bg-blue-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-blue-700 shadow-xs active:scale-95 transition-all"
+                title="بدء مفتوح فوراً فردي"
+              >
+                بدء مفتوح ⚡
+              </button>
+            </div>
 
-            <button
-              type="button"
+            {/* Multi Card */}
+            <div
               onClick={() => setMode('multi')}
               className={clsx(
-                'flex flex-col items-center justify-center rounded-lg border p-2.5 transition-all text-center',
+                'flex flex-col items-center justify-between rounded-xl border-2 p-3 transition-all cursor-pointer text-center relative shadow-xs',
                 mode === 'multi'
-                  ? 'border-purple-600 bg-purple-500/10 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/20 shadow-xs'
-                  : 'border-line bg-surface-2 text-muted hover:border-line-strong',
+                  ? 'border-purple-600 bg-purple-500/10 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/30'
+                  : 'border-line bg-surface-2 text-muted hover:border-line-strong hover:bg-surface-3',
               )}
             >
-              <Users className="size-5 mb-1" />
-              <span className="text-xs font-bold">زوجي</span>
-              {station.modes.includes('multi') && (
-                <span className="font-mono text-[11px] opacity-80">
-                  {rateNow(ctx, station, 'multi', now) ? f.rate(rateNow(ctx, station, 'multi', now)!.perHour) : ''}
-                </span>
-              )}
-            </button>
+              <Users className="size-6 mb-1 text-purple-600" />
+              <span className="text-sm font-black text-fg">زوجي</span>
+              <span className="font-mono text-xs font-semibold my-1 text-muted">
+                {multiRateQuote ? f.rate(multiRateQuote.perHour) : '3.000 د.أ'}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleQuickStartDirect('multi');
+                }}
+                className="mt-1 w-full rounded bg-purple-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-purple-700 shadow-xs active:scale-95 transition-all"
+                title="بدء مفتوح فوراً زوجي"
+              >
+                بدء مفتوح ⚡
+              </button>
+            </div>
 
-            <button
-              type="button"
+            {/* GTA 6 Card */}
+            <div
               onClick={() => setMode('gta6')}
               className={clsx(
-                'flex flex-col items-center justify-center rounded-lg border p-2.5 transition-all text-center',
+                'flex flex-col items-center justify-between rounded-xl border-2 p-3 transition-all cursor-pointer text-center relative shadow-xs',
                 mode === 'gta6'
-                  ? 'border-amber-600 bg-amber-500/15 text-amber-800 dark:text-amber-200 ring-2 ring-amber-500/30 shadow-xs'
-                  : 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400 hover:border-amber-500/60',
+                  ? 'border-amber-600 bg-amber-500/15 text-amber-900 dark:text-amber-100 ring-2 ring-amber-500/30'
+                  : 'border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400 hover:border-amber-500/70 hover:bg-amber-500/10',
               )}
             >
-              <Gamepad2 className="size-5 mb-1 text-amber-600 dark:text-amber-400" />
-              <span className="text-xs font-black">GTA 6 🚗</span>
-              <span className="font-mono text-[11px] font-bold">2.500 د.أ</span>
-            </button>
+              <Gamepad2 className="size-6 mb-1 text-amber-600 dark:text-amber-400" />
+              <span className="text-sm font-black text-amber-950 dark:text-amber-100">GTA 6 🚗</span>
+              <span className="font-mono text-xs font-black my-1 text-amber-700 dark:text-amber-300">
+                2.500 د.أ / س
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleQuickStartDirect('gta6');
+                }}
+                className="mt-1 w-full rounded bg-amber-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-amber-700 shadow-xs active:scale-95 transition-all"
+                title="بدء مفتوح فوراً GTA 6"
+              >
+                بدء مفتوح ⚡
+              </button>
+            </div>
           </div>
         </div>
 
