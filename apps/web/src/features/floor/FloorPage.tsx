@@ -156,7 +156,7 @@ export function FloorPage() {
   const canPause = can.manageSessions(role);
 
   const quickStart = useCallback(
-    async (station: StationView['station'], kind: 'open' | 'fixed', minutes?: number, mode?: string) => {
+    async (station: StationView['station'], kind: 'open' | 'fixed', minutes?: number, mode?: string, startedMinutesAgo?: number) => {
       try {
         const chosenMode = mode ?? station.modes[0] ?? 'single';
         const readyControllerIds = (floor.data?.controllers ?? [])
@@ -172,14 +172,28 @@ export function FloorPage() {
           label: null,
           customerPhone: null,
           controllerIds: readyControllerIds,
+          startedMinutesAgo: startedMinutesAgo && startedMinutesAgo > 0 ? startedMinutesAgo : undefined,
         });
         const modeLabel = chosenMode === 'multi' ? 'زوجي' : chosenMode === 'single' ? 'فردي' : chosenMode;
-        toast.success(`تم تشغيل ${station.name} (${modeLabel} - ${kind === 'fixed' ? `${minutes} دقيقة` : 'مفتوح'}) ✓`);
+        const lateNote = startedMinutesAgo && startedMinutesAgo > 0 ? ` (لعبوا ${startedMinutesAgo} د سابقاً)` : '';
+        toast.success(`تم تشغيل ${station.name} (${modeLabel} - ${kind === 'fixed' ? `${minutes} دقيقة` : 'مفتوح'}${lateNote}) ✓`);
       } catch (err) {
         toastError(err);
       }
     },
     [floor.data],
+  );
+
+  const adjustTime = useCallback(
+    async (sessionId: string, playedMinutes: number) => {
+      try {
+        await post(`/api/sessions/${sessionId}/time`, { playedMinutes });
+        toast.success(`تم تعديل وقت اللعب للجلسة إلى (${playedMinutes} دقيقة) بنجاح ✓`);
+      } catch (err) {
+        toastError(err);
+      }
+    },
+    [],
   );
 
   const changeMode = useCallback(
@@ -412,6 +426,7 @@ export function FloorPage() {
             onTogglePause={togglePause}
             onQuickCheckout={quickCheckout}
             onChangeMode={changeMode}
+            onAdjustTime={adjustTime}
           />
         )
       ) : views.length === 0 ? (

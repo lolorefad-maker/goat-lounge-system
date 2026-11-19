@@ -54,6 +54,10 @@ export const startSessionInput = z.object({
     .array(z.object({ productId: z.uuid(), qty: z.number().int().min(1).max(99) }))
     .max(50)
     .default([]),
+  /** If the cashier started the session late, how many minutes they have already played. */
+  startedMinutesAgo: z.number().int().min(0).max(24 * 60).nullish(),
+  /** Or an explicit start timestamp (ms). */
+  startedAt: z.number().int().nullish(),
 });
 
 export const sessionPaymentInput = z.object({
@@ -125,6 +129,10 @@ export async function startSession(ctx: AppContext, actor: Actor, raw: unknown) 
     });
 
     const id = newId();
+    const effectiveStart = input.startedMinutesAgo
+      ? now - input.startedMinutesAgo * 60_000
+      : (input.startedAt ?? now);
+
     await tx.insert(sessions).values({
       id,
       branchId: branch.id,
@@ -136,7 +144,7 @@ export async function startSession(ctx: AppContext, actor: Actor, raw: unknown) 
       status: 'running',
       stationId: station.id,
       reservationId: reservation?.id ?? null,
-      startedAt: new Date(now),
+      startedAt: new Date(effectiveStart),
       createdBy: actor.id,
     });
     await tx.insert(segments).values({
@@ -145,7 +153,7 @@ export async function startSession(ctx: AppContext, actor: Actor, raw: unknown) 
       stationId: station.id,
       mode: input.mode,
       paused: false,
-      startedAt: new Date(now),
+      startedAt: new Date(effectiveStart),
     });
 
     await handOverControllers(tx, record, branch.id, station.id, input.controllerIds, now, id);
@@ -410,5 +418,50 @@ export async function setSessionCustomer(ctx: AppContext, actor: Actor, id: stri
       .where(eq(sessions.id, id));
     await record({ type: 'session.customer_set', entity: 'session', entityId: id, payload: { customerId: c.id } });
     return c;
+  });
+}
+
+export const adjustTimeInput = z.object({
+  startedMinutesAgo: z.number().int().min(0).max(24 * 60).nullish(),
+  startedAt: z.number().int().nullish(),
+  playedMinutes: z.number().int().min(0).max(24 * 60).nullish(),
+});
+
+/**
+ * Adjust the started time of a running or ended session.
+ * For example: if the session started 20 minutes ago but the cashier recorded it late.
+ */
+export async function adjustSessionTime(ctx: AppContext, actor: Actor, id: string, raw: unknown) {
+  const input = adjustTimeInput.parse(raw);
+  return mutate(ctx, actor, async (tx, record) => {
+    const now = ctx.clock.now();
+    const s = await getSession(tx, actor.branchId, id);
+    if (s.status !== 'running' && s.status !== 'ended') throw new DomainError('session_closed', 'Session is already closed');
+
+    const segs = (await loadSegments(tx, [id])).get(id) ?? [];
+    if (!segs.length) throw new DomainError('no_segments', 'Session has no segments');
+
+    const sorted = [...segs].sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+    const firstSeg = sorted[0]!;
+
+    let newStart = now;
+    if (input.playedMinutes != null) {
+      newStart = now - input.playedMinutes * 60_000;
+    } else if (input.startedMinutesAgo != null) {
+      newStart = now - input.startedMinutesAgo * 60_000;
+    } else if (input.startedAt != null) {
+      newStart = input.startedAt;
+    }
+
+    await tx.update(sessions).set({ startedAt: new Date(newStart), updatedAt: new Date(now) }).where(eq(sessions.id, id));
+    await tx.update(segments).set({ startedAt: new Date(newStart) }).where(eq(segments.id, firstSeg.id));
+
+    await record({
+      type: 'session.time_adjusted',
+      entity: 'session',
+      entityId: id,
+      payload: { startedAt: newStart },
+    });
+    return { id, startedAt: newStart };
   });
 }

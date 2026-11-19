@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   CircleCheck,
+  Clock,
   Coffee,
   CreditCard,
   Edit2,
@@ -57,10 +58,11 @@ interface FloorSheetViewProps {
   onOpenStation: (stationId: string) => void;
   onOpenSession: (sessionId: string) => void;
   onCheckout: (sessionId: string) => void;
-  onQuickStart: (station: Station, kind: 'open' | 'fixed', minutes?: number, mode?: string) => Promise<void>;
+  onQuickStart: (station: Station, kind: 'open' | 'fixed', minutes?: number, mode?: string, startedMinutesAgo?: number) => Promise<void>;
   onTogglePause: (view: StationView) => Promise<void>;
   onQuickCheckout: (sessionId: string) => Promise<void>;
   onChangeMode?: (sessionId: string, nextMode: string) => Promise<void>;
+  onAdjustTime?: (sessionId: string, playedMinutes: number) => Promise<void>;
 }
 
 export function FloorSheetView({
@@ -76,6 +78,7 @@ export function FloorSheetView({
   onTogglePause,
   onQuickCheckout,
   onChangeMode,
+  onAdjustTime,
 }: FloorSheetViewProps) {
   const { t } = useT();
   const f = useFmt();
@@ -94,6 +97,7 @@ export function FloorSheetView({
   const [cafeSession, setCafeSession] = useState<{ session: FloorSession; stationName: string } | null>(null);
   const [paySession, setPaySession] = useState<{ session: FloorSession; stationName: string; due: number } | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<{ sessionId: string; currentPhone: string; currentName: string } | null>(null);
+  const [adjustingSession, setAdjustingSession] = useState<{ sessionId: string; stationName: string; currentPlayedMinutes: number } | null>(null);
 
   // Filter views
   const filteredViews = useMemo(() => {
@@ -478,8 +482,41 @@ export function FloorSheetView({
                                 {v.status === 'paused' ? <Play className="size-3 text-emerald-600" /> : <Pause className="size-3 text-amber-600" />}
                               </button>
                             )}
+                            {canManage && onAdjustTime && (
+                              <button
+                                onClick={() => {
+                                  const playedMin = Math.ceil((live?.playedMs ?? 0) / 60_000);
+                                  setAdjustingSession({
+                                    sessionId: session.id,
+                                    stationName: s.name,
+                                    currentPlayedMinutes: playedMin,
+                                  });
+                                }}
+                                className="rounded p-0.5 text-muted hover:bg-surface-2 hover:text-accent transition-colors"
+                                title="تعديل وقت اللعب (في حال بلشوا قبل أو حابب تعدل الدقائق)"
+                              >
+                                <Clock className="size-3 text-amber-600" />
+                              </button>
+                            )}
                           </div>
-                          <span className="text-[10px] text-muted">بدء: {f.time(session.startedAt)}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (canManage && onAdjustTime) {
+                                const playedMin = Math.ceil((live?.playedMs ?? 0) / 60_000);
+                                setAdjustingSession({
+                                  sessionId: session.id,
+                                  stationName: s.name,
+                                  currentPlayedMinutes: playedMin,
+                                });
+                              }
+                            }}
+                            className="text-[10px] text-muted hover:text-accent flex items-center gap-0.5 transition-colors cursor-pointer"
+                            title="اضغط لتعديل وقت البدء أو الدقائق"
+                          >
+                            <span>بدء: {f.time(session.startedAt)}</span>
+                            <Edit2 className="size-2.5 opacity-60" />
+                          </button>
                         </div>
                       ) : (
                         <div className="flex flex-col items-center justify-center gap-1.5 py-0.5">
@@ -754,7 +791,7 @@ export function FloorSheetView({
         />
       )}
 
-      {/* Quick Start Modal (Choose Single vs Multi, Open vs Fixed) */}
+      {/* Quick Start Modal (Choose Single vs Multi, Open vs Fixed, Late Start Minutes) */}
       {startModalStation && (
         <QuickStartCustomModal
           station={startModalStation.station}
@@ -763,6 +800,18 @@ export function FloorSheetView({
           now={now}
           onClose={() => setStartModalStation(null)}
           onStart={onQuickStart}
+        />
+      )}
+
+      {/* Adjust Played Time Modal (لعبوا قبل كذا دقائق / تعديل الوقت) */}
+      {adjustingSession && onAdjustTime && (
+        <AdjustSessionTimeModal
+          sessionId={adjustingSession.sessionId}
+          stationName={adjustingSession.stationName}
+          currentPlayedMinutes={adjustingSession.currentPlayedMinutes}
+          now={now}
+          onClose={() => setAdjustingSession(null)}
+          onSave={onAdjustTime}
         />
       )}
     </div>
@@ -1129,7 +1178,7 @@ function QuickCustomerDialog({
 }
 
 /**
- * Quick Start Modal: choose Single vs Multi, Open or Fixed Duration, customer note
+ * Quick Start Modal: choose Single vs Multi, Open or Fixed Duration, and Late Start (لعبوا كذا دقائق سابقاً)
  */
 function QuickStartCustomModal({
   station,
@@ -1144,20 +1193,28 @@ function QuickStartCustomModal({
   ctx: BillingContext;
   now: number;
   onClose: () => void;
-  onStart: (station: Station, kind: 'open' | 'fixed', minutes?: number, mode?: string) => Promise<void>;
+  onStart: (station: Station, kind: 'open' | 'fixed', minutes?: number, mode?: string, startedMinutesAgo?: number) => Promise<void>;
 }) {
   const f = useFmt();
   const [mode, setMode] = useState(defaultMode);
   const [kind, setKind] = useState<'open' | 'fixed'>('open');
   const [minutes, setMinutes] = useState(60);
+  const [startedMinutesAgo, setStartedMinutesAgo] = useState(0);
   const [busy, setBusy] = useState(false);
 
   const quote = rateNow(ctx, station, mode, now);
+  const simulatedStartTime = now - startedMinutesAgo * 60_000;
 
   const handleStart = async () => {
     setBusy(true);
     try {
-      await onStart(station, kind, kind === 'fixed' ? minutes : undefined, mode);
+      await onStart(
+        station,
+        kind,
+        kind === 'fixed' ? minutes : undefined,
+        mode,
+        startedMinutesAgo > 0 ? startedMinutesAgo : undefined,
+      );
       onClose();
     } finally {
       setBusy(false);
@@ -1249,6 +1306,59 @@ function QuickStartCustomModal({
           </div>
         )}
 
+        {/* Started Late Feature (بدء متأخر / لعبوا كذا دقائق سابقاً) */}
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+              <Clock className="size-3.5" />
+              <span>هل بلشوا يلعبوا من قبل؟ (بدء متأخر)</span>
+            </label>
+            {startedMinutesAgo > 0 && (
+              <span className="font-mono font-bold text-amber-600 bg-amber-500/20 px-2 py-0.5 rounded-full text-[10px]">
+                لعبوا {startedMinutesAgo} دقيقة
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-5 gap-1 mb-2">
+            {[0, 5, 10, 15, 20].map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setStartedMinutesAgo(m)}
+                className={clsx(
+                  'rounded border py-1 text-center font-bold text-[11px] transition-colors',
+                  startedMinutesAgo === m
+                    ? 'border-amber-600 bg-amber-600 text-white shadow-xs'
+                    : 'border-line bg-surface-1 text-muted hover:text-fg',
+                )}
+              >
+                {m === 0 ? 'الآن' : `${m} د`}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted shrink-0">أو إدخال يدوي:</span>
+            <Input
+              type="number"
+              min={0}
+              max={720}
+              placeholder="0 دقيقة"
+              value={startedMinutesAgo || ''}
+              onChange={(e) => setStartedMinutesAgo(Math.max(0, parseInt(e.target.value) || 0))}
+              className="h-8 font-mono text-center text-xs font-bold"
+            />
+            <span className="text-[11px] text-muted">دقيقة</span>
+          </div>
+
+          {startedMinutesAgo > 0 && (
+            <div className="mt-2 text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+              ✓ سيبدأ العداد ومعه ({startedMinutesAgo} دقيقة)، ويُحسب وقت البدء عند {f.time(simulatedStartTime)}.
+            </div>
+          )}
+        </div>
+
         {/* Hourly Rate preview */}
         {quote && (
           <div className="rounded bg-surface-2 p-2.5 text-center border border-line text-xs">
@@ -1270,6 +1380,114 @@ function QuickStartCustomModal({
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
           >
             بدء تشغيل الجهاز الآن ✓
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Adjust Session Time Modal: change elapsed minutes or adjust start time of an active session
+ */
+function AdjustSessionTimeModal({
+  sessionId,
+  stationName,
+  currentPlayedMinutes,
+  now,
+  onClose,
+  onSave,
+}: {
+  sessionId: string;
+  stationName: string;
+  currentPlayedMinutes: number;
+  now: number;
+  onClose: () => void;
+  onSave: (sessionId: string, playedMinutes: number) => Promise<void>;
+}) {
+  const f = useFmt();
+  const [playedMinutes, setPlayedMinutes] = useState(currentPlayedMinutes);
+  const [busy, setBusy] = useState(false);
+
+  const delta = playedMinutes - currentPlayedMinutes;
+  const simulatedStart = now - playedMinutes * 60_000;
+
+  const handleSubmit = async () => {
+    setBusy(true);
+    try {
+      await onSave(sessionId, Math.max(0, playedMinutes));
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open onOpenChange={(o) => !o && onClose()} title={`تعديل وقت اللعب: ${stationName}`} size="sm">
+      <div className="flex flex-col gap-4 font-sans text-xs">
+        <div className="rounded-lg bg-surface-2 p-3 text-center border border-line">
+          <div className="text-muted">الوقت المسجل حالياً في العداد</div>
+          <div className="mt-1 font-mono text-2xl font-bold text-fg">
+            {currentPlayedMinutes} دقيقة ({f.minutes(currentPlayedMinutes)})
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block font-bold text-fg">زيادة سريعة (في حال بلشوا يلعبوا قبل):</label>
+          <div className="grid grid-cols-5 gap-1.5">
+            {[5, 10, 15, 20, 30].map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setPlayedMinutes((prev) => prev + m)}
+                className="rounded border border-line bg-surface-2 py-2 text-center text-xs font-bold text-muted hover:border-accent hover:text-accent active:scale-95 transition-all shadow-xs"
+              >
+                +{m} د
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block font-bold text-fg">أو حدد إجمالي عدد الدقائق التي لعبوها بالضبط:</label>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              max={1440}
+              value={playedMinutes}
+              onChange={(e) => setPlayedMinutes(Math.max(0, parseInt(e.target.value) || 0))}
+              className="h-11 font-mono text-center text-lg font-bold"
+            />
+            <span className="text-sm font-semibold text-muted">دقيقة</span>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-line bg-surface-1 p-2.5 text-[11px] text-muted flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span>الفرق عن الوقت السابق:</span>
+            <span className={clsx('font-mono font-bold', delta > 0 ? 'text-emerald-600' : delta < 0 ? 'text-rose-600' : 'text-muted')}>
+              {delta > 0 ? `+${delta} دقيقة` : delta < 0 ? `${delta} دقيقة` : 'بدون تغيير'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>وقت البدء الفعلي الجديد:</span>
+            <span className="font-mono font-semibold text-fg">{f.time(simulatedStart)}</span>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-line pt-3">
+          <Button variant="ghost" size="md" onClick={onClose}>
+            إلغاء
+          </Button>
+          <Button
+            variant="primary"
+            size="lg"
+            loading={busy}
+            onClick={handleSubmit}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+          >
+            حفظ وتعديل الوقت ✓
           </Button>
         </div>
       </div>
