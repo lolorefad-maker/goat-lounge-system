@@ -94,6 +94,7 @@ export async function seedIfEmpty(db: DB, opts: { demo: boolean; owner?: { name:
       effect,
     });
     await tx.insert(pricingRules).values([
+      rule('ساعة GTA 6', 10, { modes: ['gta6'] }, { kind: 'rate', perHour: 2500 }),
       rule('PS5 فردي', 0, { stationTypes: ['ps5'], tiers: ['regular'], modes: ['single'] }, { kind: 'rate', perHour: 2000 }),
       rule('PS5 زوجي', 0, { stationTypes: ['ps5'], tiers: ['regular'], modes: ['multi'] }, { kind: 'rate', perHour: 3000 }),
       rule('VIP فردي', 0, { stationTypes: ['ps5'], tiers: ['vip'], modes: ['single'] }, { kind: 'rate', perHour: 4000 }),

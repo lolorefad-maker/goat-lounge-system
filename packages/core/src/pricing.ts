@@ -142,11 +142,17 @@ export function quoteRate(
 ): RateQuote | null {
   const applicable = rules.filter((r) => r.active && ruleAppliesAt(r, station, mode, t, tz));
   const base = pickTop(applicable.filter((r) => r.effect.kind === 'rate'));
-  if (!base || base.effect.kind !== 'rate') return null;
-  const pct = pickTop(applicable.filter((r) => r.effect.kind === 'percent'));
-  let perHour: number = base.effect.perHour;
-  if (pct && pct.effect.kind === 'percent') perHour = perHour * (1 + pct.effect.percent / 100);
-  return { perHour: Math.max(0, perHour), baseRuleId: base.id, percentRuleId: pct?.id ?? null };
+  if (base && base.effect.kind === 'rate') {
+    const pct = pickTop(applicable.filter((r) => r.effect.kind === 'percent'));
+    let perHour: number = base.effect.perHour;
+    if (pct && pct.effect.kind === 'percent') perHour = perHour * (1 + pct.effect.percent / 100);
+    return { perHour: Math.max(0, perHour), baseRuleId: base.id, percentRuleId: pct?.id ?? null };
+  }
+  // Built-in fixed rate for GTA 6 (2.500 JOD / hour = 2500 fils) on all stations
+  if (mode === 'gta6') {
+    return { perHour: 2500, baseRuleId: 'gta6_fixed', percentRuleId: null };
+  }
+  return null;
 }
 
 /**

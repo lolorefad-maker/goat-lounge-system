@@ -448,26 +448,56 @@ export function FloorSheetView({
                             <span
                               className={clsx(
                                 'inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold text-white shadow-xs',
-                                currentSessionMode === 'multi' ? 'bg-purple-600' : 'bg-blue-600',
+                                currentSessionMode === 'gta6'
+                                  ? 'bg-amber-600'
+                                  : currentSessionMode === 'multi'
+                                    ? 'bg-purple-600'
+                                    : 'bg-blue-600',
                               )}
                             >
-                              {currentSessionMode === 'multi' ? <Users className="size-3" /> : <User className="size-3" />}
-                              <span>{currentSessionMode === 'multi' ? 'زوجي' : 'فردي'}</span>
+                              {currentSessionMode === 'gta6' ? (
+                                <Gamepad2 className="size-3" />
+                              ) : currentSessionMode === 'multi' ? (
+                                <Users className="size-3" />
+                              ) : (
+                                <User className="size-3" />
+                              )}
+                              <span>{currentSessionMode === 'gta6' ? 'GTA 6' : currentSessionMode === 'multi' ? 'زوجي' : 'فردي'}</span>
                             </span>
 
-                            {canManage && onChangeMode && s.modes.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const next = currentSessionMode === 'multi' ? 'single' : 'multi';
-                                  onChangeMode(session.id, next);
-                                }}
-                                className="rounded border border-line bg-surface-2 px-1 py-0.5 text-[9px] font-semibold text-muted hover:border-accent hover:text-accent transition-colors flex items-center gap-0.5"
-                                title={`تبديل اللعب الآن إلى ${currentSessionMode === 'multi' ? 'فردي' : 'زوجي'}`}
-                              >
-                                <Repeat className="size-2.5" />
-                                <span>{currentSessionMode === 'multi' ? 'لفردي' : 'لزوجي'}</span>
-                              </button>
+                            {canManage && onChangeMode && (
+                              <div className="flex items-center gap-0.5">
+                                {currentSessionMode !== 'single' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onChangeMode(session.id, 'single')}
+                                    className="rounded border border-line bg-surface-2 px-1 py-0.5 text-[9px] font-semibold text-muted hover:border-accent hover:text-accent transition-colors"
+                                    title="تبديل اللعب إلى فردي"
+                                  >
+                                    فردي
+                                  </button>
+                                )}
+                                {currentSessionMode !== 'multi' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onChangeMode(session.id, 'multi')}
+                                    className="rounded border border-line bg-surface-2 px-1 py-0.5 text-[9px] font-semibold text-muted hover:border-accent hover:text-accent transition-colors"
+                                    title="تبديل اللعب إلى زوجي"
+                                  >
+                                    زوجي
+                                  </button>
+                                )}
+                                {currentSessionMode !== 'gta6' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onChangeMode(session.id, 'gta6')}
+                                    className="rounded border border-amber-500/50 bg-amber-500/10 px-1 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
+                                    title="تبديل اللعب إلى GTA 6 (2.50 د.أ)"
+                                  >
+                                    GTA 6
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
 
@@ -520,48 +550,61 @@ export function FloorSheetView({
                         </div>
                       ) : (
                         <div className="flex flex-col items-center justify-center gap-1.5 py-0.5">
-                          {/* Mode Choice: فردي / زوجي */}
-                          {s.modes.length > 1 && (
-                            <div className="flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-[10px] shadow-xs">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedModes((prev) => ({ ...prev, [s.id]: 'single' }))}
-                                className={clsx(
-                                  'flex items-center gap-0.5 rounded px-2 py-0.5 font-bold transition-all',
-                                  selectedMode === 'single'
-                                    ? 'bg-blue-600 text-white shadow-xs'
-                                    : 'text-muted hover:text-fg hover:bg-surface-3',
-                                )}
-                                title={singleRateQuote ? `سعر الساعة: ${f.rate(singleRateQuote.perHour)}` : 'فردي'}
-                              >
-                                <User className="size-2.5" />
-                                <span>فردي</span>
-                                {singleRateQuote && <span className="font-mono text-[9px] opacity-80 font-normal">({f.rate(singleRateQuote.perHour)})</span>}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setSelectedModes((prev) => ({ ...prev, [s.id]: 'multi' }))}
-                                className={clsx(
-                                  'flex items-center gap-0.5 rounded px-2 py-0.5 font-bold transition-all',
-                                  selectedMode === 'multi'
-                                    ? 'bg-purple-600 text-white shadow-xs'
-                                    : 'text-muted hover:text-fg hover:bg-surface-3',
-                                )}
-                                title={multiRateQuote ? `سعر الساعة: ${f.rate(multiRateQuote.perHour)}` : 'زوجي'}
-                              >
-                                <Users className="size-2.5" />
-                                <span>زوجي</span>
-                                {multiRateQuote && <span className="font-mono text-[9px] opacity-80 font-normal">({f.rate(multiRateQuote.perHour)})</span>}
-                              </button>
-                            </div>
-                          )}
+                          {/* Mode Choice: فردي / زوجي / GTA 6 */}
+                          <div className="flex items-center rounded-md border border-line-strong bg-surface-2 p-0.5 text-[10px] shadow-xs">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedModes((prev) => ({ ...prev, [s.id]: 'single' }))}
+                              className={clsx(
+                                'flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all',
+                                selectedMode === 'single'
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'text-muted hover:text-fg hover:bg-surface-3',
+                              )}
+                              title={singleRateQuote ? `سعر الساعة: ${f.rate(singleRateQuote.perHour)}` : 'فردي'}
+                            >
+                              <User className="size-2.5" />
+                              <span>فردي</span>
+                              {singleRateQuote && <span className="font-mono text-[9px] opacity-80 font-normal">({f.rate(singleRateQuote.perHour)})</span>}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedModes((prev) => ({ ...prev, [s.id]: 'multi' }))}
+                              className={clsx(
+                                'flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all',
+                                selectedMode === 'multi'
+                                  ? 'bg-purple-600 text-white shadow-xs'
+                                  : 'text-muted hover:text-fg hover:bg-surface-3',
+                              )}
+                              title={multiRateQuote ? `سعر الساعة: ${f.rate(multiRateQuote.perHour)}` : 'زوجي'}
+                            >
+                              <Users className="size-2.5" />
+                              <span>زوجي</span>
+                              {multiRateQuote && <span className="font-mono text-[9px] opacity-80 font-normal">({f.rate(multiRateQuote.perHour)})</span>}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedModes((prev) => ({ ...prev, [s.id]: 'gta6' }))}
+                              className={clsx(
+                                'flex items-center gap-0.5 rounded px-1.5 py-0.5 font-black transition-all',
+                                selectedMode === 'gta6'
+                                  ? 'bg-amber-600 text-white shadow-xs'
+                                  : 'text-amber-700 dark:text-amber-400 hover:text-fg hover:bg-surface-3',
+                              )}
+                              title="ساعة GTA 6 بـ 2.500 د.أ ثابتة على كل الأجهزة"
+                            >
+                              <Gamepad2 className="size-2.5" />
+                              <span>GTA 6</span>
+                              <span className="font-mono text-[9px] font-bold opacity-90">(2.50)</span>
+                            </button>
+                          </div>
 
                           {/* Quick Start Buttons */}
                           <div className="flex items-center justify-center gap-1">
                             <button
                               onClick={() => onQuickStart(s, 'open', undefined, selectedMode)}
                               className="inline-flex h-7 items-center gap-1 rounded bg-emerald-600 px-2 text-[11px] font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
-                              title={`بدء وقت مفتوح (${selectedMode === 'multi' ? 'زوجي' : 'فردي'})`}
+                              title={`بدء وقت مفتوح (${selectedMode === 'gta6' ? 'GTA 6' : selectedMode === 'multi' ? 'زوجي' : 'فردي'})`}
                             >
                               <Play className="size-3 fill-current" />
                               <span>بدء مفتوح</span>
@@ -1227,21 +1270,21 @@ function QuickStartCustomModal({
         {/* Mode Selector */}
         <div>
           <label className="mb-1.5 block font-bold text-fg">اختر نوع اللعب:</label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               onClick={() => setMode('single')}
               className={clsx(
-                'flex flex-col items-center justify-center rounded-lg border p-3 transition-all',
+                'flex flex-col items-center justify-center rounded-lg border p-2.5 transition-all text-center',
                 mode === 'single'
                   ? 'border-blue-600 bg-blue-500/10 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/20 shadow-xs'
                   : 'border-line bg-surface-2 text-muted hover:border-line-strong',
               )}
             >
               <User className="size-5 mb-1" />
-              <span className="text-sm font-bold">فردي (Single)</span>
+              <span className="text-xs font-bold">فردي</span>
               {station.modes.includes('single') && (
-                <span className="font-mono text-xs opacity-80">
+                <span className="font-mono text-[11px] opacity-80">
                   {rateNow(ctx, station, 'single', now) ? f.rate(rateNow(ctx, station, 'single', now)!.perHour) : ''}
                 </span>
               )}
@@ -1251,19 +1294,34 @@ function QuickStartCustomModal({
               type="button"
               onClick={() => setMode('multi')}
               className={clsx(
-                'flex flex-col items-center justify-center rounded-lg border p-3 transition-all',
+                'flex flex-col items-center justify-center rounded-lg border p-2.5 transition-all text-center',
                 mode === 'multi'
                   ? 'border-purple-600 bg-purple-500/10 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/20 shadow-xs'
                   : 'border-line bg-surface-2 text-muted hover:border-line-strong',
               )}
             >
               <Users className="size-5 mb-1" />
-              <span className="text-sm font-bold">زوجي (Multi)</span>
+              <span className="text-xs font-bold">زوجي</span>
               {station.modes.includes('multi') && (
-                <span className="font-mono text-xs opacity-80">
+                <span className="font-mono text-[11px] opacity-80">
                   {rateNow(ctx, station, 'multi', now) ? f.rate(rateNow(ctx, station, 'multi', now)!.perHour) : ''}
                 </span>
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMode('gta6')}
+              className={clsx(
+                'flex flex-col items-center justify-center rounded-lg border p-2.5 transition-all text-center',
+                mode === 'gta6'
+                  ? 'border-amber-600 bg-amber-500/15 text-amber-800 dark:text-amber-200 ring-2 ring-amber-500/30 shadow-xs'
+                  : 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400 hover:border-amber-500/60',
+              )}
+            >
+              <Gamepad2 className="size-5 mb-1 text-amber-600 dark:text-amber-400" />
+              <span className="text-xs font-black">GTA 6 🚗</span>
+              <span className="font-mono text-[11px] font-bold">2.500 د.أ</span>
             </button>
           </div>
         </div>

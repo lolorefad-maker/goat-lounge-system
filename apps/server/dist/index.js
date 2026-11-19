@@ -4963,6 +4963,7 @@ async function seedIfEmpty(db, opts) {
       effect
     });
     await tx.insert(pricingRules).values([
+      rule("\u0633\u0627\u0639\u0629 GTA 6", 10, { modes: ["gta6"] }, { kind: "rate", perHour: 2500 }),
       rule("PS5 \u0641\u0631\u062F\u064A", 0, { stationTypes: ["ps5"], tiers: ["regular"], modes: ["single"] }, { kind: "rate", perHour: 2e3 }),
       rule("PS5 \u0632\u0648\u062C\u064A", 0, { stationTypes: ["ps5"], tiers: ["regular"], modes: ["multi"] }, { kind: "rate", perHour: 3e3 }),
       rule("VIP \u0641\u0631\u062F\u064A", 0, { stationTypes: ["ps5"], tiers: ["vip"], modes: ["single"] }, { kind: "rate", perHour: 4e3 }),
