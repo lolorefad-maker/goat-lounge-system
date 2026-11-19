@@ -17,6 +17,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Repeat,
   Search,
   SlidersHorizontal,
   Square,
@@ -24,6 +25,7 @@ import {
   Trash2,
   User,
   UserCheck,
+  Users,
   Wallet,
   X,
 } from 'lucide-react';
@@ -38,7 +40,7 @@ import { useT } from '../../i18n';
 import { post } from '../../lib/api';
 import { can, useAuth } from '../../lib/auth';
 import { useFmt } from '../../lib/format';
-import type { StationView } from '../../lib/live';
+import { rateNow, type StationView } from '../../lib/live';
 import { useProducts, useSessionBill } from '../../lib/queries';
 import type { Floor, FloorSession, Product, Station } from '../../lib/types';
 import { announceStock, useCart } from '../cafe/products';
@@ -52,14 +54,15 @@ interface FloorSheetViewProps {
   onOpenStation: (stationId: string) => void;
   onOpenSession: (sessionId: string) => void;
   onCheckout: (sessionId: string) => void;
-  onQuickStart: (station: Station, kind: 'open' | 'fixed', minutes?: number) => Promise<void>;
+  onQuickStart: (station: Station, kind: 'open' | 'fixed', minutes?: number, mode?: string) => Promise<void>;
   onTogglePause: (view: StationView) => Promise<void>;
   onQuickCheckout: (sessionId: string) => Promise<void>;
+  onChangeMode?: (sessionId: string, nextMode: string) => Promise<void>;
 }
 
 export function FloorSheetView({
   floor,
-  ctx: _ctx,
+  ctx,
   now,
   views,
   rateLabels,
@@ -69,6 +72,7 @@ export function FloorSheetView({
   onQuickStart,
   onTogglePause,
   onQuickCheckout,
+  onChangeMode,
 }: FloorSheetViewProps) {
   const { t } = useT();
   const f = useFmt();
@@ -79,10 +83,13 @@ export function FloorSheetView({
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'free' | 'ending' | 'overtime'>('all');
 
+  // Mode selection state per station (defaults to 'single' or station.modes[0])
+  const [selectedModes, setSelectedModes] = useState<Record<string, string>>({});
+  const [startModalStation, setStartModalStation] = useState<{ station: Station; defaultMode: string } | null>(null);
+
   // Modals state
   const [cafeSession, setCafeSession] = useState<{ session: FloorSession; stationName: string } | null>(null);
   const [paySession, setPaySession] = useState<{ session: FloorSession; stationName: string; due: number } | null>(null);
-  const [startStation, setStartStation] = useState<Station | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<{ sessionId: string; currentPhone: string; currentName: string } | null>(null);
 
   // Filter views
@@ -278,6 +285,13 @@ export function FloorSheetView({
                 const paid = session?.paid ?? 0;
                 const due = Math.max(0, totalCost - paid);
 
+                // Mode logic (فردي / زوجي)
+                const curSegment = session?.segments.find((seg) => seg.endedAt === null);
+                const currentSessionMode = curSegment?.mode ?? session?.segments.at(-1)?.mode ?? 'single';
+                const selectedMode = selectedModes[s.id] ?? (s.modes.includes('single') ? 'single' : (s.modes[0] ?? 'single'));
+                const singleRateQuote = s.modes.includes('single') ? rateNow(ctx, s, 'single', now) : null;
+                const multiRateQuote = s.modes.includes('multi') ? rateNow(ctx, s, 'multi', now) : null;
+
                 // Rate string
                 const rateStr = rateLabels.get(s.id) ?? '';
 
@@ -393,10 +407,38 @@ export function FloorSheetView({
                       )}
                     </td>
 
-                    {/* Column E: Start Cell (بدء اللعب) */}
+                    {/* Column E: Start Cell (بدء اللعب مع خيار فردي / زوجي) */}
                     <td className="border-e border-line px-2 py-1.5 text-center bg-emerald-500/5">
                       {isRunning ? (
-                        <div className="flex flex-col items-center justify-center gap-0.5">
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          {/* Current Mode Badge + Quick 1-click Switch */}
+                          <div className="flex items-center gap-1">
+                            <span
+                              className={clsx(
+                                'inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold text-white shadow-xs',
+                                currentSessionMode === 'multi' ? 'bg-purple-600' : 'bg-blue-600',
+                              )}
+                            >
+                              {currentSessionMode === 'multi' ? <Users className="size-3" /> : <User className="size-3" />}
+                              <span>{currentSessionMode === 'multi' ? 'زوجي' : 'فردي'}</span>
+                            </span>
+
+                            {canManage && onChangeMode && s.modes.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = currentSessionMode === 'multi' ? 'single' : 'multi';
+                                  onChangeMode(session.id, next);
+                                }}
+                                className="rounded border border-line bg-surface-2 px-1 py-0.5 text-[9px] font-semibold text-muted hover:border-accent hover:text-accent transition-colors flex items-center gap-0.5"
+                                title={`تبديل اللعب الآن إلى ${currentSessionMode === 'multi' ? 'فردي' : 'زوجي'}`}
+                              >
+                                <Repeat className="size-2.5" />
+                                <span>{currentSessionMode === 'multi' ? 'لفردي' : 'لزوجي'}</span>
+                              </button>
+                            )}
+                          </div>
+
                           <div className="flex items-center gap-1 font-mono font-bold text-fg">
                             <span className="text-sm">{live ? f.duration(live.playedMs) : '--:--'}</span>
                             {canManage && (
@@ -412,29 +454,75 @@ export function FloorSheetView({
                           <span className="text-[10px] text-muted">بدء: {f.time(session.startedAt)}</span>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => onQuickStart(s, 'open')}
-                            className="inline-flex h-7 items-center gap-1 rounded bg-emerald-600 px-2.5 text-[11px] font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
-                            title="تشغيل مفتوح فوري"
-                          >
-                            <Play className="size-3 fill-current" />
-                            <span>بدء مفتوح</span>
-                          </button>
-                          <button
-                            onClick={() => onQuickStart(s, 'fixed', 60)}
-                            className="inline-flex h-7 items-center rounded border border-emerald-600/30 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20"
-                            title="تشغيل ساعة محددة"
-                          >
-                            1 س
-                          </button>
-                          <button
-                            onClick={() => onQuickStart(s, 'fixed', 120)}
-                            className="inline-flex h-7 items-center rounded border border-emerald-600/30 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20"
-                            title="تشغيل ساعتين"
-                          >
-                            2 س
-                          </button>
+                        <div className="flex flex-col items-center justify-center gap-1.5 py-0.5">
+                          {/* Mode Choice: فردي / زوجي */}
+                          {s.modes.length > 1 && (
+                            <div className="flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-[10px] shadow-xs">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedModes((prev) => ({ ...prev, [s.id]: 'single' }))}
+                                className={clsx(
+                                  'flex items-center gap-0.5 rounded px-2 py-0.5 font-bold transition-all',
+                                  selectedMode === 'single'
+                                    ? 'bg-blue-600 text-white shadow-xs'
+                                    : 'text-muted hover:text-fg hover:bg-surface-3',
+                                )}
+                                title={singleRateQuote ? `سعر الساعة: ${f.rate(singleRateQuote.perHour)}` : 'فردي'}
+                              >
+                                <User className="size-2.5" />
+                                <span>فردي</span>
+                                {singleRateQuote && <span className="font-mono text-[9px] opacity-80 font-normal">({f.rate(singleRateQuote.perHour)})</span>}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedModes((prev) => ({ ...prev, [s.id]: 'multi' }))}
+                                className={clsx(
+                                  'flex items-center gap-0.5 rounded px-2 py-0.5 font-bold transition-all',
+                                  selectedMode === 'multi'
+                                    ? 'bg-purple-600 text-white shadow-xs'
+                                    : 'text-muted hover:text-fg hover:bg-surface-3',
+                                )}
+                                title={multiRateQuote ? `سعر الساعة: ${f.rate(multiRateQuote.perHour)}` : 'زوجي'}
+                              >
+                                <Users className="size-2.5" />
+                                <span>زوجي</span>
+                                {multiRateQuote && <span className="font-mono text-[9px] opacity-80 font-normal">({f.rate(multiRateQuote.perHour)})</span>}
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Quick Start Buttons */}
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => onQuickStart(s, 'open', undefined, selectedMode)}
+                              className="inline-flex h-7 items-center gap-1 rounded bg-emerald-600 px-2 text-[11px] font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
+                              title={`بدء وقت مفتوح (${selectedMode === 'multi' ? 'زوجي' : 'فردي'})`}
+                            >
+                              <Play className="size-3 fill-current" />
+                              <span>بدء مفتوح</span>
+                            </button>
+                            <button
+                              onClick={() => onQuickStart(s, 'fixed', 60, selectedMode)}
+                              className="inline-flex h-7 items-center rounded border border-emerald-600/30 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20"
+                              title={`تشغيل 1 ساعة (${selectedMode === 'multi' ? 'زوجي' : 'فردي'})`}
+                            >
+                              1 س
+                            </button>
+                            <button
+                              onClick={() => onQuickStart(s, 'fixed', 120, selectedMode)}
+                              className="inline-flex h-7 items-center rounded border border-emerald-600/30 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20"
+                              title={`تشغيل ساعتين (${selectedMode === 'multi' ? 'زوجي' : 'فردي'})`}
+                            >
+                              2 س
+                            </button>
+                            <button
+                              onClick={() => setStartModalStation({ station: s, defaultMode: selectedMode })}
+                              className="inline-flex h-7 items-center rounded border border-line bg-surface-2 px-1 text-[10px] font-bold text-muted hover:text-fg hover:border-accent"
+                              title="بدء مخصص..."
+                            >
+                              ...
+                            </button>
+                          </div>
                         </div>
                       )}
                     </td>
@@ -634,6 +722,18 @@ export function FloorSheetView({
           initialPhone={editingCustomer.currentPhone}
           initialName={editingCustomer.currentName}
           onClose={() => setEditingCustomer(null)}
+        />
+      )}
+
+      {/* Quick Start Modal (Choose Single vs Multi, Open vs Fixed) */}
+      {startModalStation && (
+        <QuickStartCustomModal
+          station={startModalStation.station}
+          defaultMode={startModalStation.defaultMode}
+          ctx={ctx}
+          now={now}
+          onClose={() => setStartModalStation(null)}
+          onStart={onQuickStart}
         />
       )}
     </div>
@@ -980,6 +1080,155 @@ function QuickCustomerDialog({
           </Button>
           <Button variant="primary" size="md" loading={busy} onClick={handleSubmit}>
             حفظ البيانات ✓
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Quick Start Modal: choose Single vs Multi, Open or Fixed Duration, customer note
+ */
+function QuickStartCustomModal({
+  station,
+  defaultMode,
+  ctx,
+  now,
+  onClose,
+  onStart,
+}: {
+  station: Station;
+  defaultMode: string;
+  ctx: BillingContext;
+  now: number;
+  onClose: () => void;
+  onStart: (station: Station, kind: 'open' | 'fixed', minutes?: number, mode?: string) => Promise<void>;
+}) {
+  const f = useFmt();
+  const [mode, setMode] = useState(defaultMode);
+  const [kind, setKind] = useState<'open' | 'fixed'>('open');
+  const [minutes, setMinutes] = useState(60);
+  const [busy, setBusy] = useState(false);
+
+  const quote = rateNow(ctx, station, mode, now);
+
+  const handleStart = async () => {
+    setBusy(true);
+    try {
+      await onStart(station, kind, kind === 'fixed' ? minutes : undefined, mode);
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open onOpenChange={(o) => !o && onClose()} title={`تشغيل جهاز: ${station.name}`} size="sm">
+      <div className="flex flex-col gap-4 font-sans text-xs">
+        {/* Mode Selector */}
+        <div>
+          <label className="mb-1.5 block font-bold text-fg">اختر نوع اللعب:</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setMode('single')}
+              className={clsx(
+                'flex flex-col items-center justify-center rounded-lg border p-3 transition-all',
+                mode === 'single'
+                  ? 'border-blue-600 bg-blue-500/10 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/20 shadow-xs'
+                  : 'border-line bg-surface-2 text-muted hover:border-line-strong',
+              )}
+            >
+              <User className="size-5 mb-1" />
+              <span className="text-sm font-bold">فردي (Single)</span>
+              {station.modes.includes('single') && (
+                <span className="font-mono text-xs opacity-80">
+                  {rateNow(ctx, station, 'single', now) ? f.rate(rateNow(ctx, station, 'single', now)!.perHour) : ''}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMode('multi')}
+              className={clsx(
+                'flex flex-col items-center justify-center rounded-lg border p-3 transition-all',
+                mode === 'multi'
+                  ? 'border-purple-600 bg-purple-500/10 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/20 shadow-xs'
+                  : 'border-line bg-surface-2 text-muted hover:border-line-strong',
+              )}
+            >
+              <Users className="size-5 mb-1" />
+              <span className="text-sm font-bold">زوجي (Multi)</span>
+              {station.modes.includes('multi') && (
+                <span className="font-mono text-xs opacity-80">
+                  {rateNow(ctx, station, 'multi', now) ? f.rate(rateNow(ctx, station, 'multi', now)!.perHour) : ''}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Kind Selector: Open vs Fixed */}
+        <div>
+          <label className="mb-1 block font-bold text-fg">نوع الوقت:</label>
+          <Segmented
+            size="md"
+            value={kind}
+            onChange={(k) => setKind(k as 'open' | 'fixed')}
+            options={[
+              { value: 'open', label: '⏱️ وقت مفتوح' },
+              { value: 'fixed', label: '⏳ وقت محدد' },
+            ]}
+          />
+        </div>
+
+        {/* Fixed Minutes presets */}
+        {kind === 'fixed' && (
+          <div>
+            <label className="mb-1 block font-medium text-muted">مدة اللعب:</label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[30, 60, 90, 120].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMinutes(m)}
+                  className={clsx(
+                    'rounded-md border py-2 text-center font-bold text-xs transition-colors',
+                    minutes === m
+                      ? 'border-accent bg-accent text-accent-fg'
+                      : 'border-line bg-surface-2 text-muted hover:text-fg',
+                  )}
+                >
+                  {m >= 60 ? `${m / 60} س` : `${m} د`}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Hourly Rate preview */}
+        {quote && (
+          <div className="rounded bg-surface-2 p-2.5 text-center border border-line text-xs">
+            <span className="text-muted">سعر الساعة المحدد: </span>
+            <span className="font-mono font-bold text-fg">{f.rate(quote.perHour)}</span>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 border-t border-line pt-3">
+          <Button variant="ghost" size="md" onClick={onClose}>
+            إلغاء
+          </Button>
+          <Button
+            variant="primary"
+            size="lg"
+            loading={busy}
+            onClick={handleStart}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+          >
+            بدء تشغيل الجهاز الآن ✓
           </Button>
         </div>
       </div>

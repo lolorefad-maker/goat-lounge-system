@@ -156,15 +156,16 @@ export function FloorPage() {
   const canPause = can.manageSessions(role);
 
   const quickStart = useCallback(
-    async (station: StationView['station'], kind: 'open' | 'fixed', minutes?: number) => {
+    async (station: StationView['station'], kind: 'open' | 'fixed', minutes?: number, mode?: string) => {
       try {
+        const chosenMode = mode ?? station.modes[0] ?? 'single';
         const readyControllerIds = (floor.data?.controllers ?? [])
           .filter((c) => c.stationId === station.id && c.status === 'ready')
           .map((c) => c.id);
 
         await post('/api/sessions', {
           stationId: station.id,
-          mode: station.modes[0] ?? 'single',
+          mode: chosenMode,
           kind,
           plannedMinutes: kind === 'fixed' ? (minutes ?? 60) : null,
           packageId: null,
@@ -172,12 +173,26 @@ export function FloorPage() {
           customerPhone: null,
           controllerIds: readyControllerIds,
         });
-        toast.success(`تم تشغيل ${station.name} (${kind === 'fixed' ? `${minutes} دقيقة` : 'مفتوح'}) ✓`);
+        const modeLabel = chosenMode === 'multi' ? 'زوجي' : chosenMode === 'single' ? 'فردي' : chosenMode;
+        toast.success(`تم تشغيل ${station.name} (${modeLabel} - ${kind === 'fixed' ? `${minutes} دقيقة` : 'مفتوح'}) ✓`);
       } catch (err) {
         toastError(err);
       }
     },
     [floor.data],
+  );
+
+  const changeMode = useCallback(
+    async (sessionId: string, nextMode: string) => {
+      try {
+        await post(`/api/sessions/${sessionId}/action`, { type: 'mode', mode: nextMode });
+        const modeLabel = nextMode === 'multi' ? 'زوجي' : nextMode === 'single' ? 'فردي' : nextMode;
+        toast.success(`تم تحويل الجلسة إلى (${modeLabel}) بنجاح ✓`);
+      } catch (err) {
+        toastError(err);
+      }
+    },
+    [],
   );
 
   const quickExtend = useCallback(
@@ -396,6 +411,7 @@ export function FloorPage() {
             onQuickStart={quickStart}
             onTogglePause={togglePause}
             onQuickCheckout={quickCheckout}
+            onChangeMode={changeMode}
           />
         )
       ) : views.length === 0 ? (
