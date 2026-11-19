@@ -2,6 +2,8 @@ import { parseMoney, type BillingContext } from '@lounge/core';
 import { clsx } from 'clsx';
 import {
   Banknote,
+  BarChart3,
+  Boxes,
   Check,
   ChevronDown,
   CircleCheck,
@@ -30,6 +32,7 @@ import {
   X,
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { TypeIcon } from '../../components/station/status';
 import { Button } from '../../components/ui/button';
@@ -180,8 +183,33 @@ export function FloorSheetView({
           </div>
         </div>
 
-        {/* Quick filters & Search */}
+        {/* Quick filters, Shift info & Reports */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Shift status pill */}
+          {floor.shift ? (
+            <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-400">
+              <Wallet className="size-3.5" />
+              <span className="font-semibold">الوردية: {floor.shift.userName}</span>
+              <span>· بالدرج:</span>
+              <Money value={floor.shift.expectedCash} className="font-bold font-mono" />
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-400">
+              <Wallet className="size-3.5" />
+              <span>الوردية مغلقة</span>
+            </div>
+          )}
+
+          {/* Direct Link to Reports (الجرد) */}
+          <Link
+            to="/reports"
+            className="flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface-2 px-3 text-xs font-semibold text-muted hover:border-accent hover:text-accent transition-colors shadow-xs"
+            title="فتح صفحة الجرد والتقارير اليومية والشهرية"
+          >
+            <BarChart3 className="size-3.5" />
+            <span>الجرد والتقارير</span>
+          </Link>
+
           <div className="relative">
             <Search className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
             <input
@@ -706,6 +734,7 @@ export function FloorSheetView({
           sessionId={paySession.session.id}
           stationName={paySession.stationName}
           suggestedDue={paySession.due}
+          hasOpenShift={!!floor.shift}
           onClose={() => setPaySession(null)}
           onCheckout={() => {
             const sid = paySession.session.id;
@@ -925,12 +954,14 @@ function QuickPayDialog({
   sessionId,
   stationName,
   suggestedDue,
+  hasOpenShift,
   onClose,
   onCheckout,
 }: {
   sessionId: string;
   stationName: string;
   suggestedDue: number;
+  hasOpenShift: boolean;
   onClose: () => void;
   onCheckout: () => void;
 }) {
@@ -956,6 +987,12 @@ function QuickPayDialog({
   return (
     <Modal open onOpenChange={(o) => !o && onClose()} title={`تحصيل حساب: ${stationName}`} size="sm">
       <div className="flex flex-col gap-4 font-sans text-xs">
+        {!hasOpenShift && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-amber-800 dark:text-amber-300">
+            ⚠️ <strong>تنبيه: الوردية مغلقة!</strong> يجب فتح الوردية أولاً من زر الصندوق أعلى الشاشة لتسجيل المقبوضات في الصندوق وحفظ الجرد اليومي.
+          </div>
+        )}
+
         <div className="rounded-lg bg-surface-2 p-3 text-center border border-line">
           <div className="text-muted">المبلغ المتبقي المطلوب</div>
           <div className="mt-1 font-mono text-2xl font-bold text-accent">
@@ -1005,11 +1042,15 @@ function QuickPayDialog({
             variant="primary"
             size="lg"
             loading={busy}
-            disabled={!minor || minor <= 0}
+            disabled={!hasOpenShift || !minor || minor <= 0}
             onClick={handleSubmitPay}
             block
           >
-            تأكيد استلام المبلغ (<Money value={minor || 0} />) ✓
+            {hasOpenShift ? (
+              <>تأكيد استلام المبلغ (<Money value={minor || 0} />) ✓</>
+            ) : (
+              'يجب فتح الوردية أولاً'
+            )}
           </Button>
           <Button variant="ghost" size="sm" onClick={onCheckout} block className="text-muted text-[11px]">
             فتح شاشة المحاسبة والطباعة الكاملة...
