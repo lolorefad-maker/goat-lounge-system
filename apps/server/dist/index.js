@@ -2445,7 +2445,11 @@ var startSessionInput = z8.object({
   /** Numbered controllers handed to the customer. */
   controllerIds: z8.array(z8.uuid()).max(8).default([]),
   /** Drinks / food ordered together with the device. */
-  items: z8.array(z8.object({ productId: z8.uuid(), qty: z8.number().int().min(1).max(99) })).max(50).default([])
+  items: z8.array(z8.object({ productId: z8.uuid(), qty: z8.number().int().min(1).max(99) })).max(50).default([]),
+  /** If the cashier started the session late, how many minutes they have already played. */
+  startedMinutesAgo: z8.number().int().min(0).max(24 * 60).nullish(),
+  /** Or an explicit start timestamp (ms). */
+  startedAt: z8.number().int().nullish()
 });
 var sessionPaymentInput = z8.object({
   amount: z8.number().int().min(1),
@@ -2503,6 +2507,7 @@ async function startSession(ctx2, actor, raw) {
       strict: !!input.customerPhone
     });
     const id = newId();
+    const effectiveStart = input.startedMinutesAgo ? now - input.startedMinutesAgo * 6e4 : input.startedAt ?? now;
     await tx.insert(sessions).values({
       id,
       branchId: branch.id,
@@ -2514,7 +2519,7 @@ async function startSession(ctx2, actor, raw) {
       status: "running",
       stationId: station2.id,
       reservationId: reservation?.id ?? null,
-      startedAt: new Date(now),
+      startedAt: new Date(effectiveStart),
       createdBy: actor.id
     });
     await tx.insert(segments).values({
@@ -2523,7 +2528,7 @@ async function startSession(ctx2, actor, raw) {
       stationId: station2.id,
       mode: input.mode,
       paused: false,
-      startedAt: new Date(now)
+      startedAt: new Date(effectiveStart)
     });
     await handOverControllers(tx, record, branch.id, station2.id, input.controllerIds, now, id);
     const order = input.items.length ? await insertOrder(tx, record, branch, actor, { sessionId: id, items: input.items }, now) : null;
@@ -2740,6 +2745,40 @@ async function setSessionCustomer(ctx2, actor, id, raw) {
     await tx.update(sessions).set({ customerId: c.id, label: s.label || input.name || null, updatedAt: new Date(ctx2.clock.now()) }).where(eq10(sessions.id, id));
     await record({ type: "session.customer_set", entity: "session", entityId: id, payload: { customerId: c.id } });
     return c;
+  });
+}
+var adjustTimeInput = z8.object({
+  startedMinutesAgo: z8.number().int().min(0).max(24 * 60).nullish(),
+  startedAt: z8.number().int().nullish(),
+  playedMinutes: z8.number().int().min(0).max(24 * 60).nullish()
+});
+async function adjustSessionTime(ctx2, actor, id, raw) {
+  const input = adjustTimeInput.parse(raw);
+  return mutate(ctx2, actor, async (tx, record) => {
+    const now = ctx2.clock.now();
+    const s = await getSession(tx, actor.branchId, id);
+    if (s.status !== "running" && s.status !== "ended") throw new DomainError("session_closed", "Session is already closed");
+    const segs = (await loadSegments(tx, [id])).get(id) ?? [];
+    if (!segs.length) throw new DomainError("no_segments", "Session has no segments");
+    const sorted = [...segs].sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+    const firstSeg = sorted[0];
+    let newStart = now;
+    if (input.playedMinutes != null) {
+      newStart = now - input.playedMinutes * 6e4;
+    } else if (input.startedMinutesAgo != null) {
+      newStart = now - input.startedMinutesAgo * 6e4;
+    } else if (input.startedAt != null) {
+      newStart = input.startedAt;
+    }
+    await tx.update(sessions).set({ startedAt: new Date(newStart), updatedAt: new Date(now) }).where(eq10(sessions.id, id));
+    await tx.update(segments).set({ startedAt: new Date(newStart) }).where(eq10(segments.id, firstSeg.id));
+    await record({
+      type: "session.time_adjusted",
+      entity: "session",
+      entityId: id,
+      payload: { startedAt: newStart }
+    });
+    return { id, startedAt: newStart };
   });
 }
 
@@ -4497,6 +4536,7 @@ async function buildApp(ctx2) {
   app2.post("/api/sessions", route("session.manage", async (req, actor) => startSession(ctx2, actor, req.body)));
   app2.post("/api/sessions/:id/action", route("session.manage", async (req, actor) => sessionAction(ctx2, actor, id(req), req.body)));
   app2.post("/api/sessions/:id/customer", route("session.manage", async (req, actor) => setSessionCustomer(ctx2, actor, id(req), req.body)));
+  app2.post("/api/sessions/:id/time", route("session.manage", async (req, actor) => adjustSessionTime(ctx2, actor, id(req), req.body)));
   app2.post("/api/sessions/:id/plan", route("session.manage", async (req, actor) => setPlan(ctx2, actor, id(req), req.body)));
   app2.post("/api/sessions/:id/reopen", route("session.manage", async (req, actor) => reopenSession(ctx2, actor, id(req))));
   app2.post("/api/sessions/:id/void", route("session.manage", async (req, actor) => voidSession(ctx2, actor, id(req), req.body)));

@@ -249,52 +249,52 @@ export function FloorSheetView({
       </div>
 
       {/* Spreadsheet Table Container */}
-      <div className="overflow-x-auto rounded-card border border-line bg-surface-1 shadow-sm">
-        <table className="w-full min-w-[1100px] border-collapse text-start text-xs">
+      <div className="overflow-x-auto rounded-card border-2 border-line-strong bg-surface-1 shadow-sm">
+        <table className="w-full min-w-[1100px] border-collapse text-start text-xs border border-line-strong">
           {/* Table Header with Column Letters (Google Sheets Style) */}
           <thead>
             {/* Letters Row */}
-            <tr className="border-b border-line bg-surface-2/70 text-center font-mono text-[10px] text-faint select-none">
-              <th className="w-10 border-e border-line p-1">A</th>
-              <th className="w-48 border-e border-line p-1">B</th>
-              <th className="w-28 border-e border-line p-1">C</th>
-              <th className="w-40 border-e border-line p-1">D</th>
-              <th className="w-44 border-e border-line p-1">E</th>
-              <th className="w-28 border-e border-line p-1">F</th>
-              <th className="w-48 border-e border-line p-1">G</th>
-              <th className="w-32 border-e border-line p-1">H</th>
-              <th className="w-32 border-e border-line p-1">I</th>
-              <th className="w-36 border-e border-line p-1 bg-accent/5 font-semibold text-accent">J [تلقائي]</th>
-              <th className="w-44 border-e border-line p-1">K</th>
+            <tr className="border-b-2 border-line-strong bg-surface-2/90 text-center font-mono text-[10px] text-faint select-none">
+              <th className="w-10 border-e border-line-strong p-1">A</th>
+              <th className="w-48 border-e border-line-strong p-1">B</th>
+              <th className="w-28 border-e border-line-strong p-1">C</th>
+              <th className="w-40 border-e border-line-strong p-1">D</th>
+              <th className="w-44 border-e border-line-strong p-1">E</th>
+              <th className="w-52 border-e border-line-strong p-1 bg-amber-500/15 font-black text-amber-800 dark:text-amber-300">F [كافيتريا]</th>
+              <th className="w-28 border-e border-line-strong p-1">G</th>
+              <th className="w-32 border-e border-line-strong p-1">H</th>
+              <th className="w-32 border-e border-line-strong p-1">I</th>
+              <th className="w-36 border-e border-line-strong p-1 bg-accent/10 font-bold text-accent">J [تلقائي]</th>
+              <th className="w-44 border-e border-line-strong p-1">K</th>
               <th className="w-24 p-1">L</th>
             </tr>
             {/* Arabic Descriptive Header */}
-            <tr className="border-b-2 border-line-strong bg-surface-2 text-muted font-semibold text-[12px]">
-              <th className="border-e border-line px-2 py-2.5 text-center">#</th>
-              <th className="border-e border-line px-3 py-2.5 text-start">الجهاز / الطاولة</th>
-              <th className="border-e border-line px-3 py-2.5 text-center">الحالة</th>
-              <th className="border-e border-line px-3 py-2.5 text-start">العميل / الحساب</th>
-              <th className="border-e border-line px-3 py-2.5 text-center bg-emerald-500/5 text-emerald-700 dark:text-emerald-400">
+            <tr className="border-b-2 border-line-strong bg-surface-2 text-muted font-bold text-[12px]">
+              <th className="border-e border-line-strong px-2 py-2.5 text-center">#</th>
+              <th className="border-e border-line-strong px-3 py-2.5 text-start">الجهاز / الطاولة</th>
+              <th className="border-e border-line-strong px-3 py-2.5 text-center">الحالة</th>
+              <th className="border-e border-line-strong px-3 py-2.5 text-start">العميل / الحساب</th>
+              <th className="border-e border-line-strong px-3 py-2.5 text-center bg-emerald-500/5 text-emerald-700 dark:text-emerald-400">
                 بدء اللعب ⏱️
               </th>
-              <th className="border-e border-line px-3 py-2.5 text-center bg-rose-500/5 text-rose-700 dark:text-rose-400">
-                إنهاء اللعب ⏹️
-              </th>
-              <th className="border-e border-line px-3 py-2.5 text-start bg-amber-500/5 text-amber-700 dark:text-amber-400">
+              <th className="border-e border-line-strong px-3 py-2.5 text-start bg-amber-500/15 text-amber-900 dark:text-amber-200 font-black text-[13px] tracking-wide border-x-2 border-amber-500/40">
                 كافيتريا وطلبات 🥤🍟
               </th>
-              <th className="border-e border-line px-3 py-2.5 text-end font-mono">حساب اللعب</th>
-              <th className="border-e border-line px-3 py-2.5 text-end font-mono">حساب الكافيتريا</th>
-              <th className="border-e border-line px-3 py-2.5 text-end font-mono bg-accent/10 text-accent font-bold">
+              <th className="border-e border-line-strong px-3 py-2.5 text-center bg-rose-500/5 text-rose-700 dark:text-rose-400">
+                إنهاء اللعب ⏹️
+              </th>
+              <th className="border-e border-line-strong px-3 py-2.5 text-end font-mono">حساب اللعب</th>
+              <th className="border-e border-line-strong px-3 py-2.5 text-end font-mono">حساب الكافيتريا</th>
+              <th className="border-e border-line-strong px-3 py-2.5 text-end font-mono bg-accent/15 text-accent font-black">
                 المجموع الكلي 💰
               </th>
-              <th className="border-e border-line px-3 py-2.5 text-start">قديه حاسبه / التحصيل</th>
+              <th className="border-e border-line-strong px-3 py-2.5 text-start">قديه حاسبه / التحصيل</th>
               <th className="px-3 py-2.5 text-center">إجراءات</th>
             </tr>
           </thead>
 
           {/* Table Body (Spreadsheet Rows) */}
-          <tbody className="divide-y divide-line">
+          <tbody className="divide-y divide-line-strong">
             {filteredViews.length === 0 ? (
               <tr>
                 <td colSpan={12} className="py-8 text-center text-sm text-faint">
@@ -338,12 +338,12 @@ export function FloorSheetView({
                     )}
                   >
                     {/* Column A: Row Number */}
-                    <td className="border-e border-line px-2 py-2.5 text-center font-mono text-[11px] text-faint">
+                    <td className="border-e border-line-strong px-2 py-2.5 text-center font-mono text-[11px] text-faint">
                       {idx + 1}
                     </td>
 
                     {/* Column B: Station Name & Info */}
-                    <td className="border-e border-line px-3 py-2">
+                    <td className="border-e border-line-strong px-3 py-2">
                       <div className="flex items-center gap-2">
                         <TypeIcon type={s.type} className="size-4 shrink-0 text-muted" />
                         <div>
@@ -364,7 +364,7 @@ export function FloorSheetView({
                     </td>
 
                     {/* Column C: Status Badge */}
-                    <td className="border-e border-line px-2 py-2 text-center">
+                    <td className="border-e border-line-strong px-2 py-2 text-center">
                       <span
                         className={clsx(
                           'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
@@ -397,7 +397,7 @@ export function FloorSheetView({
                     </td>
 
                     {/* Column D: Customer */}
-                    <td className="border-e border-line px-3 py-2">
+                    <td className="border-e border-line-strong px-3 py-2">
                       {session?.customer ? (
                         <div className="flex items-center justify-between gap-1">
                           <div>
@@ -408,9 +408,9 @@ export function FloorSheetView({
                             <button
                               onClick={() =>
                                 setEditingCustomer({
-                                  sessionId: session.id,
-                                  currentPhone: session.customer?.phone ?? '',
-                                  currentName: session.customer?.name ?? '',
+                                   sessionId: session.id,
+                                   currentPhone: session.customer?.phone ?? '',
+                                   currentName: session.customer?.name ?? '',
                                 })
                               }
                               className="rounded p-1 text-faint hover:bg-surface-2 hover:text-fg"
@@ -440,7 +440,7 @@ export function FloorSheetView({
                     </td>
 
                     {/* Column E: Start Cell (بدء اللعب مع خيار فردي / زوجي) */}
-                    <td className="border-e border-line px-2 py-1.5 text-center bg-emerald-500/5">
+                    <td className="border-e border-line-strong px-2 py-1.5 text-center bg-emerald-500/5">
                       {isRunning ? (
                         <div className="flex flex-col items-center justify-center gap-1">
                           {/* Current Mode Badge + Quick 1-click Switch */}
@@ -592,8 +592,45 @@ export function FloorSheetView({
                       )}
                     </td>
 
-                    {/* Column F: End Cell (إنهاء اللعب) */}
-                    <td className="border-e border-line px-2 py-1.5 text-center bg-rose-500/5">
+                    {/* Column F: Cafeteria (كافيتريا بين البدء والإنهاء بخط عريض وواضح) */}
+                    <td className="border-e border-line-strong px-2.5 py-1.5 bg-amber-500/10 dark:bg-amber-500/15">
+                      {hasSession ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            onClick={() => setCafeSession({ session, stationName: s.name })}
+                            className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border-2 border-amber-500/70 bg-amber-500/25 px-2.5 text-xs font-black text-amber-950 dark:text-amber-100 hover:bg-amber-500/40 active:scale-95 transition-all shadow-xs"
+                            title="فتح قائمة الكافيتريا لاختيار الطلبات"
+                          >
+                            <Coffee className="size-4 text-amber-700 dark:text-amber-300 stroke-[2.5]" />
+                            <span className="font-black text-xs tracking-wide">كافيتريا</span>
+                            <Plus className="size-3.5 stroke-[3]" />
+                          </button>
+
+                          {session.itemsCount > 0 && (
+                            <span
+                              onClick={() => setCafeSession({ session, stationName: s.name })}
+                              className="cursor-pointer rounded-md bg-amber-500/35 border-2 border-amber-500/60 px-2 py-0.5 font-mono text-xs font-black text-amber-950 dark:text-amber-100 hover:underline shrink-0 shadow-xs"
+                              title="عرض الطلبات الحالية"
+                            >
+                              <Num>{session.itemsCount}</Num> طلب
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            toast.info('قم ببدء الجهاز أولاً لإضافة طلبات كافيتريا إليه أو افتح صفحة الكافيتيريا للبيع المباشر');
+                          }}
+                          className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border-2 border-dashed border-amber-500/40 text-xs font-black text-muted/70 hover:text-fg hover:border-amber-500/70"
+                        >
+                          <Coffee className="size-3.5 opacity-50" />
+                          <span className="font-black text-xs">كافيتريا</span>
+                        </button>
+                      )}
+                    </td>
+
+                    {/* Column G: End Cell (إنهاء اللعب) */}
+                    <td className="border-e border-line-strong px-2 py-1.5 text-center bg-rose-500/5">
                       {isRunning ? (
                         <button
                           onClick={() => onQuickCheckout(session.id)}
@@ -613,60 +650,23 @@ export function FloorSheetView({
                       )}
                     </td>
 
-                    {/* Column G: Cafeteria (كافيتريا كبسة بقدر يختار) */}
-                    <td className="border-e border-line px-2 py-1.5 bg-amber-500/5">
-                      {hasSession ? (
-                        <div className="flex items-center justify-between gap-1.5">
-                          <button
-                            onClick={() => setCafeSession({ session, stationName: s.name })}
-                            className="inline-flex h-7 flex-1 items-center justify-center gap-1.5 rounded border border-amber-500/40 bg-amber-500/15 px-2 text-[11px] font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 active:scale-95 transition-all"
-                            title="فتح قائمة الكافيتريا لاختيار الطلبات"
-                          >
-                            <Coffee className="size-3.5 text-amber-600" />
-                            <span>كافيتريا</span>
-                            <Plus className="size-3" />
-                          </button>
-
-                          {session.itemsCount > 0 && (
-                            <span
-                              onClick={() => setCafeSession({ session, stationName: s.name })}
-                              className="cursor-pointer rounded bg-amber-500/20 px-1.5 py-0.5 font-mono text-[11px] font-bold text-amber-700 dark:text-amber-400 hover:underline"
-                              title="عرض الطلبات الحالية"
-                            >
-                              <Num>{session.itemsCount}</Num> طلب
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            toast.info('قم ببدء الجهاز أولاً لإضافة طلبات كافيتريا إليه أو افتح صفحة الكافيتيريا للبيع المباشر');
-                          }}
-                          className="inline-flex h-7 w-full items-center justify-center gap-1 rounded border border-dashed border-line text-[11px] text-faint hover:text-muted"
-                        >
-                          <Coffee className="size-3 opacity-40" />
-                          <span>كافيتريا</span>
-                        </button>
-                      )}
-                    </td>
-
                     {/* Column H: Play Cost (حساب اللعب) */}
-                    <td className="border-e border-line px-3 py-2 text-end font-mono font-semibold">
+                    <td className="border-e border-line-strong px-3 py-2 text-end font-mono font-semibold">
                       {hasSession ? <Money value={playCost} /> : <span className="text-faint">0.00</span>}
                     </td>
 
                     {/* Column I: Cafeteria Cost (حساب الكافيتريا) */}
-                    <td className="border-e border-line px-3 py-2 text-end font-mono font-semibold text-amber-700 dark:text-amber-400">
+                    <td className="border-e border-line-strong px-3 py-2 text-end font-mono font-bold text-amber-700 dark:text-amber-400">
                       {hasSession && cafeCost > 0 ? <Money value={cafeCost} /> : <span className="text-faint">0.00</span>}
                     </td>
 
                     {/* Column J: Total Bill (المجموع الكلي - يحسب لحاله) */}
-                    <td className="border-e border-line px-3 py-2 text-end font-mono font-bold text-sm bg-accent/10 text-accent">
+                    <td className="border-e border-line-strong px-3 py-2 text-end font-mono font-black text-sm bg-accent/10 text-accent">
                       {hasSession ? <Money value={totalCost} /> : <span className="text-faint">0.00</span>}
                     </td>
 
                     {/* Column K: Paid & Accounting (قديه حاسبه) */}
-                    <td className="border-e border-line px-2 py-1.5">
+                    <td className="border-e border-line-strong px-2 py-1.5">
                       {hasSession ? (
                         <div className="flex items-center justify-between gap-1.5">
                           <div className="flex flex-col text-[11px]">
@@ -724,27 +724,27 @@ export function FloorSheetView({
           {/* Table Footer: Totals Row (Google Sheets Formula Sum) */}
           <tfoot>
             <tr className="border-t-2 border-line-strong bg-surface-2 font-bold text-xs">
-              <td className="border-e border-line px-2 py-3 text-center font-mono">Σ</td>
-              <td className="border-e border-line px-3 py-3 text-start">
+              <td className="border-e border-line-strong px-2 py-3 text-center font-mono">Σ</td>
+              <td className="border-e border-line-strong px-3 py-3 text-start">
                 <span>المجموع الكلي ({totals.totalStations} أجهزة)</span>
               </td>
-              <td className="border-e border-line px-2 py-3 text-center text-muted">
+              <td className="border-e border-line-strong px-2 py-3 text-center text-muted">
                 <span>{totals.activeCount} شغال · {totals.freeCount} متاح</span>
               </td>
-              <td className="border-e border-line px-3 py-3 text-muted">-</td>
-              <td className="border-e border-line px-2 py-3 text-center text-emerald-600">-</td>
-              <td className="border-e border-line px-2 py-3 text-center text-rose-600">-</td>
-              <td className="border-e border-line px-2 py-3 text-start text-amber-600">-</td>
-              <td className="border-e border-line px-3 py-3 text-end font-mono">
+              <td className="border-e border-line-strong px-3 py-3 text-muted">-</td>
+              <td className="border-e border-line-strong px-2 py-3 text-center text-emerald-600">-</td>
+              <td className="border-e border-line-strong px-2 py-3 text-center text-amber-700 dark:text-amber-400 font-black">-</td>
+              <td className="border-e border-line-strong px-2 py-3 text-center text-rose-600">-</td>
+              <td className="border-e border-line-strong px-3 py-3 text-end font-mono">
                 <Money value={totals.playTotal} />
               </td>
-              <td className="border-e border-line px-3 py-3 text-end font-mono text-amber-700 dark:text-amber-400">
+              <td className="border-e border-line-strong px-3 py-3 text-end font-mono text-amber-700 dark:text-amber-400 font-bold">
                 <Money value={totals.cafeTotal} />
               </td>
-              <td className="border-e border-line px-3 py-3 text-end font-mono text-sm bg-accent/15 text-accent">
+              <td className="border-e border-line-strong px-3 py-3 text-end font-mono text-sm bg-accent/15 text-accent font-black">
                 <Money value={totals.grandTotal} />
               </td>
-              <td className="border-e border-line px-3 py-3">
+              <td className="border-e border-line-strong px-3 py-3">
                 <div className="flex flex-col text-[11px]">
                   <span>المقبوض: <Money value={totals.paidTotal} /></span>
                   <span className="text-rose-600 dark:text-rose-400">المتبقي: <Money value={totals.dueTotal} /></span>
