@@ -1,6 +1,6 @@
 import { controllerState } from '@lounge/core';
 import { clsx } from 'clsx';
-import { AlarmClock, BatteryCharging, CalendarPlus, CircleCheck, Gamepad, Gamepad2, Hourglass, LayoutGrid, Search, Wallet } from 'lucide-react';
+import { AlarmClock, BatteryCharging, CalendarPlus, CircleCheck, FileSpreadsheet, Gamepad, Gamepad2, Hourglass, LayoutGrid, Search, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { TypeIcon } from '../../components/station/status';
@@ -23,6 +23,7 @@ import { StationCard } from './StationCard';
 import { StationSheet } from './StationSheet';
 import { RewardsLink } from './RewardsLink';
 import { StockButton } from './StockButton';
+import { FloorSheetView } from './FloorSheetView';
 
 type Filter = 'all' | string;
 type StatusFilter = 'all' | 'playing' | 'free' | 'ending' | 'overtime';
@@ -47,6 +48,10 @@ export function FloorPage() {
   const [filter, setFilter] = useState<Filter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [q, setQ] = useState('');
+  const [viewMode, setViewMode] = useState<'sheet' | 'cards'>(() => {
+    const saved = localStorage.getItem('goat_floor_view_mode');
+    return saved === 'cards' ? 'cards' : 'sheet';
+  });
   const searchRef = useRef<HTMLInputElement>(null);
   const [params, setParams] = useSearchParams();
 
@@ -312,6 +317,40 @@ export function FloorPage() {
         </div>
         {/* Tools wrap onto a second line on a phone: none hides off the edge. */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* View Mode Toggle: Google Sheet vs Cards */}
+          <div className="flex items-center rounded-full border border-line bg-surface-1 p-0.5 shadow-[var(--shadow-card)]">
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('sheet');
+                localStorage.setItem('goat_floor_view_mode', 'sheet');
+              }}
+              className={clsx(
+                'flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-bold transition-all',
+                viewMode === 'sheet' ? 'bg-emerald-600 text-white shadow-sm' : 'text-muted hover:text-fg',
+              )}
+              title="عرض جدول الإدارة السريع (نمط قوقل شيت)"
+            >
+              <FileSpreadsheet className="size-3.5" />
+              <span>جدول شيت</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('cards');
+                localStorage.setItem('goat_floor_view_mode', 'cards');
+              }}
+              className={clsx(
+                'flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-bold transition-all',
+                viewMode === 'cards' ? 'bg-accent text-accent-fg shadow-sm' : 'text-muted hover:text-fg',
+              )}
+              title="عرض الكروت المربعات"
+            >
+              <LayoutGrid className="size-3.5" />
+              <span>كروت</span>
+            </button>
+          </div>
+
           {can.reservations(role) && (
             <button
               onClick={() => setBooking({})}
@@ -342,8 +381,24 @@ export function FloorPage() {
         </div>
       </div>
 
-      {/* Stations by zone */}
-      {views.length === 0 ? (
+      {/* Stations: Google Sheet View vs Cards by Zone */}
+      {viewMode === 'sheet' ? (
+        floor.data && (
+          <FloorSheetView
+            floor={floor.data}
+            ctx={ctx}
+            now={now}
+            views={views}
+            rateLabels={rateLabels}
+            onOpenStation={open}
+            onOpenSession={(sessionId) => setSelected({ sessionId })}
+            onCheckout={(sessionId) => setCheckoutId(sessionId)}
+            onQuickStart={quickStart}
+            onTogglePause={togglePause}
+            onQuickCheckout={quickCheckout}
+          />
+        )
+      ) : views.length === 0 ? (
         <EmptyState icon={<LayoutGrid />} title={t('floor.empty')} />
       ) : visible.length === 0 ? (
         <EmptyState icon={<Search />} title={t('floor.noMatch')} action={<Button onClick={() => (setQ(''), setFilter('all'), setStatusFilter('all'))}>{t('common.all')}</Button>} />
