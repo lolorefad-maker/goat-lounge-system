@@ -34,8 +34,19 @@ export async function seedIfEmpty(db: DB, opts: { demo: boolean; owner?: { name:
   const orgId = newId();
   const branchId = newId();
   const settings = defaultBranchSettings();
-  settings.billing.graceMinutes = 3;
-  settings.billing.roundingMinutes = 5;
+  if (opts.demo) {
+    // Demo lounge (and the server tests built on it): per 5 minutes after a 3-minute grace.
+    settings.billing.graceMinutes = 3;
+    settings.billing.roundingMinutes = 5;
+  } else {
+    // The shop's rule: first hour once a minute is played, each next hour after 20 minutes of it
+    // (existing shops get it from migration 0011_hour_billing).
+    settings.billing.graceMinutes = 1;
+    settings.billing.minimumMinutes = 60;
+    settings.billing.roundingMinutes = 60;
+    settings.billing.roundingMode = 'up';
+    settings.billing.roundingThresholdMinutes = 20;
+  }
   settings.checkout.cashRounding = 50; // round bills to 0.050
   settings.checkout.refundApprovalAbove = 2000;
 

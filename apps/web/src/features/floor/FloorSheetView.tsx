@@ -1,17 +1,16 @@
-import { parseMoney, type BillingContext } from '@lounge/core';
+import type { BillingContext } from '@lounge/core';
 import { clsx } from 'clsx';
 import {
   Banknote,
   BarChart3,
   Boxes,
-  Check,
   ChevronDown,
   CircleCheck,
   Clock,
   Coffee,
-  CreditCard,
   Edit2,
   FileSpreadsheet,
+  Gift,
   Gamepad2,
   Hourglass,
   Layers,
@@ -23,6 +22,7 @@ import {
   Repeat,
   Search,
   SlidersHorizontal,
+  Smartphone,
   Square,
   Timer,
   Trash2,
@@ -32,24 +32,27 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { TypeIcon } from '../../components/station/status';
 import { Button } from '../../components/ui/button';
 import { toastError, useAction } from '../../components/ui/feedback';
 import { Modal } from '../../components/ui/overlays';
-import { Field, Input, Money, Num, Segmented } from '../../components/ui/primitives';
+import { Field, Input, Money, Num, Row, Segmented, Skeleton } from '../../components/ui/primitives';
 import { useT } from '../../i18n';
-import { post } from '../../lib/api';
+import { ApiError, post } from '../../lib/api';
 import { can, useAuth } from '../../lib/auth';
 import { useFmt } from '../../lib/format';
 import { rateNow, type StationView } from '../../lib/live';
 import { useProducts, useSessionBill } from '../../lib/queries';
 import type { Floor, FloorSession, Product, Station } from '../../lib/types';
 import { announceStock, useCart } from '../cafe/products';
+import { BillWhatsAppButton } from '../checkout/BillWhatsAppButton';
+import { WhatsAppButton } from '../rewards/WhatsAppButton';
 import { SheetFormatBar, cellFx } from './SheetFormatBar';
 import { useSheetFormat, type SheetCol } from './sheetFormat';
+import { SHEET_NAME_MAX, useSheetNames, useTodayNames } from './sheetNames';
 
 /** Column letters row (click a letter to select the column for coloring). */
 const LETTER_HEADS: { col: SheetCol; cls: string; label?: string }[] = [
@@ -103,6 +106,11 @@ export function FloorSheetView({
   const role = useAuth((s) => s.user?.role);
   const canManage = can.manageSessions(role);
 
+  // Device names the cashier typed today (the column starts empty each new day)
+  const todayNames = useTodayNames(floor.day);
+  const setSheetName = useSheetNames((st) => st.setName);
+  const nameOf = (st: Station) => todayNames[st.id]?.trim() || st.name;
+
   // Search & Filter
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'free' | 'ending' | 'overtime'>('all');
@@ -113,7 +121,7 @@ export function FloorSheetView({
 
   // Modals state
   const [cafeSession, setCafeSession] = useState<{ session: FloorSession; stationName: string } | null>(null);
-  const [paySession, setPaySession] = useState<{ session: FloorSession; stationName: string; due: number } | null>(null);
+  const [settle, setSettle] = useState<{ sessionId: string; stationName: string; method: 'cash' | 'card' } | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<{ sessionId: string; currentPhone: string; currentName: string } | null>(null);
   const [adjustingSession, setAdjustingSession] = useState<{ sessionId: string; stationName: string; currentPlayedMinutes: number } | null>(null);
 
@@ -134,7 +142,7 @@ export function FloorSheetView({
       }
       if (search.trim()) {
         const q = search.toLowerCase();
-        const sName = v.station.name.toLowerCase();
+        const sName = `${v.station.name} ${todayNames[v.station.id] ?? ''}`.toLowerCase();
         const cName = (v.session?.customer?.name ?? '').toLowerCase();
         const cPhone = (v.session?.customer?.phone ?? '').toLowerCase();
         const label = (v.session?.label ?? '').toLowerCase();
@@ -142,7 +150,7 @@ export function FloorSheetView({
       }
       return true;
     });
-  }, [views, statusFilter, search]);
+  }, [views, statusFilter, search, todayNames]);
 
   // Aggregate totals (like Google Sheets SUM formulas)
   const totals = useMemo(() => {
@@ -322,7 +330,7 @@ export function FloorSheetView({
               <th {...fx('J')} className="border-e border-line-strong px-3 py-2.5 text-end font-mono bg-accent/15 text-accent font-black">
                 المجموع الكلي 💰
               </th>
-              <th {...fx('K')} className="border-e border-line-strong px-3 py-2.5 text-start">قديه حاسبه / التحصيل</th>
+              <th {...fx('K')} className="border-e border-line-strong px-3 py-2.5 text-center">{t('sheetPay.header')} 💳</th>
               <th {...fx('L')} className="px-3 py-2.5 text-center">إجراءات</th>
             </tr>
           </thead>
@@ -348,8 +356,6 @@ export function FloorSheetView({
                 const playCost = v.bill?.total ?? 0;
                 const cafeCost = session?.itemsTotal ?? 0;
                 const totalCost = playCost + cafeCost;
-                const paid = session?.paid ?? 0;
-                const due = Math.max(0, totalCost - paid);
 
                 // Mode logic (فردي / زوجي)
                 const curSegment = session?.segments.find((seg) => seg.endedAt === null);
@@ -377,21 +383,33 @@ export function FloorSheetView({
                     </td>
 
                     {/* Column B: Station Name & Info */}
-                    <td {...fx('B')} className="border-e border-line-strong px-3 py-2">
-                      <div className="flex items-center gap-2">
+                    <td {...fx('B')} className="border-e border-line-strong px-2 py-1.5">
+                      <div className="flex items-center gap-1.5">
                         <TypeIcon type={s.type} className="size-4 shrink-0 text-muted" />
-                        <div>
-                          <div className="flex items-center gap-1.5 font-bold text-fg">
-                            <span>{s.name}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1">
+                            {/* The cashier types the device's name: empty at the start of each day */}
+                            <input
+                              type="text"
+                              value={todayNames[s.id] ?? ''}
+                              onChange={(e) => setSheetName(floor.day, s.id, e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                              maxLength={SHEET_NAME_MAX}
+                              placeholder={t('sheetNames.placeholder')}
+                              aria-label={t('sheetNames.label', { name: s.name })}
+                              title={t('sheetNames.hint')}
+                              className="w-full min-w-0 rounded border border-transparent bg-transparent px-1.5 py-1 text-sm font-bold text-fg transition-colors placeholder:font-normal placeholder:text-faint hover:border-line focus:border-accent focus:bg-surface-1 focus:outline-none"
+                            />
                             {s.tier === 'vip' && (
-                              <span className="rounded bg-amber-500/20 px-1 py-0.2 sheet-text-9 font-bold text-amber-600 dark:text-amber-400">
+                              <span className="shrink-0 rounded bg-amber-500/20 px-1 py-0.2 sheet-text-9 font-bold text-amber-600 dark:text-amber-400">
                                 VIP
                               </span>
                             )}
                           </div>
-                          <div className="sheet-text-11 text-muted">
-                            {s.zone ? <span>{s.zone} · </span> : null}
-                            <span className="font-mono sheet-text-10 text-faint">{rateStr}</span>
+                          <div className="truncate ps-1.5 sheet-text-10 text-faint">
+                            <span className="font-mono">{s.name}</span>
+                            {s.zone ? <span> · {s.zone}</span> : null}
+                            <span className="font-mono"> · {rateStr}</span>
                           </div>
                         </div>
                       </div>
@@ -553,7 +571,7 @@ export function FloorSheetView({
                                   const playedMin = Math.ceil((live?.playedMs ?? 0) / 60_000);
                                   setAdjustingSession({
                                     sessionId: session.id,
-                                    stationName: s.name,
+                                    stationName: nameOf(s),
                                     currentPlayedMinutes: playedMin,
                                   });
                                 }}
@@ -571,7 +589,7 @@ export function FloorSheetView({
                                 const playedMin = Math.ceil((live?.playedMs ?? 0) / 60_000);
                                 setAdjustingSession({
                                   sessionId: session.id,
-                                  stationName: s.name,
+                                  stationName: nameOf(s),
                                   currentPlayedMinutes: playedMin,
                                 });
                               }
@@ -604,7 +622,7 @@ export function FloorSheetView({
                       {hasSession ? (
                         <div className="flex items-center justify-between gap-2">
                           <button
-                            onClick={() => setCafeSession({ session, stationName: s.name })}
+                            onClick={() => setCafeSession({ session, stationName: nameOf(s) })}
                             className="inline-flex min-h-8 whitespace-nowrap flex-1 items-center justify-center gap-1.5 rounded-md border-2 border-amber-500/70 bg-amber-500/25 px-2.5 text-xs font-black text-amber-950 dark:text-amber-100 hover:bg-amber-500/40 active:scale-95 transition-all shadow-xs"
                             title="فتح قائمة الكافيتريا لاختيار الطلبات"
                           >
@@ -615,7 +633,7 @@ export function FloorSheetView({
 
                           {session.itemsCount > 0 && (
                             <span
-                              onClick={() => setCafeSession({ session, stationName: s.name })}
+                              onClick={() => setCafeSession({ session, stationName: nameOf(s) })}
                               className="cursor-pointer rounded-md bg-amber-500/35 border-2 border-amber-500/60 px-2 py-0.5 font-mono text-xs font-black text-amber-950 dark:text-amber-100 hover:underline shrink-0 shadow-xs"
                               title="عرض الطلبات الحالية"
                             >
@@ -661,6 +679,12 @@ export function FloorSheetView({
                     {/* Column H: Play Cost (حساب اللعب) */}
                     <td {...fx('H')} className="border-e border-line-strong px-3 py-2 text-end font-mono font-semibold">
                       {hasSession ? <Money value={playCost} /> : <span className="text-faint">0.00</span>}
+                      {/* What the time is billed as (hour rule: 5 min → 1 h, 1:21 → 2 h) */}
+                      {hasSession && v.bill && v.bill.billableMs !== v.bill.playedMs && (
+                        <div className="mt-0.5 whitespace-nowrap font-sans sheet-text-10 font-medium text-muted">
+                          {t('sheetPay.billedAs', { d: f.span(v.bill.billableMs) })}
+                        </div>
+                      )}
                     </td>
 
                     {/* Column I: Cafeteria Cost (حساب الكافيتريا) */}
@@ -673,35 +697,30 @@ export function FloorSheetView({
                       {hasSession ? <Money value={totalCost} /> : <span className="text-faint">0.00</span>}
                     </td>
 
-                    {/* Column K: Paid & Accounting (قديه حاسبه) */}
+                    {/* Column K: Payment type (كاش / كليك) — pays the whole bill and closes it */}
                     <td {...fx('K')} className="border-e border-line-strong px-2 py-1.5">
                       {hasSession ? (
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex flex-col sheet-text-11">
-                            <span className="text-muted">
-                              المدفوع: <Money value={paid} className="font-semibold text-fg" />
-                            </span>
-                            {due > 0 ? (
-                              <span className="font-semibold text-rose-600 dark:text-rose-400">
-                                المتبقي: <Money value={due} />
-                              </span>
-                            ) : (
-                              <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
-                                <Check className="size-3" /> تم الدفع
-                              </span>
-                            )}
-                          </div>
-
-                          {due > 0 && (
-                            <button
-                              onClick={() => setPaySession({ session, stationName: s.name, due })}
-                              className="inline-flex min-h-7 whitespace-nowrap items-center gap-1 rounded bg-surface-2 border border-line px-2 sheet-text-10 font-bold text-fg hover:border-accent hover:text-accent active:scale-95 transition-all shadow-sm"
-                              title="تسجيل دفعة نقدية أو فيزا"
-                            >
-                              <Banknote className="size-3" />
-                              <span>دفع</span>
-                            </button>
-                          )}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            data-solid
+                            onClick={() => setSettle({ sessionId: session.id, stationName: nameOf(s), method: 'cash' })}
+                            className="inline-flex min-h-8 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-md bg-emerald-600 px-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95"
+                            title={t('sheetPay.payCash')}
+                          >
+                            <Banknote className="size-3.5" />
+                            <span>{t('sheetPay.cash')}</span>
+                          </button>
+                          <button
+                            type="button"
+                            data-solid
+                            onClick={() => setSettle({ sessionId: session.id, stationName: nameOf(s), method: 'card' })}
+                            className="inline-flex min-h-8 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-md bg-sky-600 px-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-sky-700 active:scale-95"
+                            title={t('sheetPay.payCliq')}
+                          >
+                            <Smartphone className="size-3.5" />
+                            <span>{t('sheetPay.cliq')}</span>
+                          </button>
                         </div>
                       ) : (
                         <span className="text-faint">-</span>
@@ -754,8 +773,8 @@ export function FloorSheetView({
               </td>
               <td {...fx('K')} className="border-e border-line-strong px-3 py-3">
                 <div className="flex flex-col sheet-text-11">
-                  <span>المقبوض: <Money value={totals.paidTotal} /></span>
-                  <span className="text-rose-600 dark:text-rose-400">المتبقي: <Money value={totals.dueTotal} /></span>
+                  <span className="text-muted">{t('sheetPay.toCollect')}</span>
+                  <Money value={totals.dueTotal} className="font-mono" />
                 </div>
               </td>
               <td {...fx('L')} className="px-2 py-3 text-center text-faint">✓</td>
@@ -773,17 +792,18 @@ export function FloorSheetView({
         />
       )}
 
-      {/* Quick Pay Dialog */}
-      {paySession && (
-        <QuickPayDialog
-          sessionId={paySession.session.id}
-          stationName={paySession.stationName}
-          suggestedDue={paySession.due}
+      {/* Pay the whole bill (cash / CliQ) and close it — WhatsApp bill after, when the number is known */}
+      {settle && (
+        <QuickSettleDialog
+          key={settle.sessionId}
+          sessionId={settle.sessionId}
+          stationName={settle.stationName}
+          initialMethod={settle.method}
           hasOpenShift={!!floor.shift}
-          onClose={() => setPaySession(null)}
-          onCheckout={() => {
-            const sid = paySession.session.id;
-            setPaySession(null);
+          onClose={() => setSettle(null)}
+          onFullCheckout={() => {
+            const sid = settle.sessionId;
+            setSettle(null);
             onCheckout(sid);
           }}
         />
@@ -1005,117 +1025,191 @@ function QuickCafeDialog({
 }
 
 /**
- * Quick Pay Dialog: Collect cash or card immediately
+ * Pay the whole bill from the sheet in one go (cash or CliQ). Shows what is charged first — played
+ * vs billed time, play, cafeteria, what was paid before, the amount due — then checks out (a device
+ * still playing ends now). With a phone number on the device, the bill goes out on WhatsApp after.
  */
-function QuickPayDialog({
+function QuickSettleDialog({
   sessionId,
   stationName,
-  suggestedDue,
+  initialMethod,
   hasOpenShift,
   onClose,
-  onCheckout,
+  onFullCheckout,
 }: {
   sessionId: string;
   stationName: string;
-  suggestedDue: number;
+  initialMethod: 'cash' | 'card';
   hasOpenShift: boolean;
   onClose: () => void;
-  onCheckout: () => void;
+  onFullCheckout: () => void;
 }) {
   const { t } = useT();
   const f = useFmt();
-  const { busy, run } = useAction();
-  const [amountStr, setAmountStr] = useState('');
-  const [method, setMethod] = useState<'cash' | 'card'>('cash');
+  const bill = useSessionBill(sessionId);
+  const [method, setMethod] = useState<'cash' | 'card'>(initialMethod);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<SettleDone | null>(null);
 
-  const minor = amountStr === '' ? suggestedDue : parseMoney(amountStr, f.decimals);
+  // A running device is priced "as of now": take fresh numbers when the window opens.
+  useEffect(() => {
+    void bill.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleSubmitPay = async () => {
-    if (!minor || minor <= 0) return;
-    const ok = await run(
-      () => post(`/api/sessions/${sessionId}/payments`, { amount: minor, method }),
-      { success: `تم تسجيل دفعة بقيمة ${f.money(minor)} لجهاز ${stationName} ✓` },
-    );
-    if (ok) {
-      onClose();
+  const data = bill.data;
+  const totals = data?.totals;
+  const due = totals?.due ?? 0;
+  const running = data?.session.status === 'running';
+  const methodLabel = method === 'cash' ? t('sheetPay.cash') : t('sheetPay.cliq');
+  const blocked = !totals || due < 0 || (due > 0 && !hasOpenShift);
+  const title = t('sheetPay.title', { name: stationName });
+
+  const confirm = async () => {
+    if (!totals || blocked) return;
+    setBusy(true);
+    try {
+      const res = await post<SettleDone>(`/api/sessions/${sessionId}/checkout`, {
+        payments: due === 0 ? [] : [{ method, amount: due }],
+        expectedTotal: totals.total,
+      });
+      const phone = res.reward?.phone ?? data?.customer?.phone ?? null;
+      if (phone || res.reward) {
+        setDone({ ...res, phone });
+      } else {
+        toast.success(t('sheetPay.done', { n: res.number }));
+        onClose();
+      }
+    } catch (err) {
+      toastError(err);
+      if (err instanceof ApiError && err.code === 'bill_changed') void bill.refetch();
+    } finally {
+      setBusy(false);
     }
   };
 
+  if (done) {
+    return (
+      <Modal open onOpenChange={(o) => !o && onClose()} title={title} size="sm">
+        <div className="flex flex-col items-center gap-3 py-4 text-center">
+          <span className="grid size-14 place-items-center rounded-full bg-st-free/15 text-st-free">
+            <CircleCheck className="size-8" />
+          </span>
+          <p className="text-base font-semibold">{t('sheetPay.done', { n: done.number })}</p>
+          {done.phone && <BillWhatsAppButton billId={done.billId} phone={done.phone} block />}
+          {done.reward && (
+            <div data-status="free" className="tint flex w-full flex-col gap-2 rounded-card border p-3 text-start text-sm">
+              <div className="flex items-center gap-2 font-semibold">
+                <Gift className="size-4 shrink-0" aria-hidden />
+                {t('rewards.earned', { free: f.span(done.reward.minutes * 60_000) })}
+              </div>
+              <WhatsAppButton reward={done.reward} variant="outline" block />
+            </div>
+          )}
+          <Button block size="lg" variant="primary" onClick={onClose}>
+            {t('common.done')}
+          </Button>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
-    <Modal open onOpenChange={(o) => !o && onClose()} title={`تحصيل حساب: ${stationName}`} size="sm">
-      <div className="flex flex-col gap-4 font-sans text-xs">
-        {!hasOpenShift && (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-amber-800 dark:text-amber-300">
-            ⚠️ <strong>تنبيه: الوردية مغلقة!</strong> يجب فتح الوردية أولاً من زر الصندوق أعلى الشاشة لتسجيل المقبوضات في الصندوق وحفظ الجرد اليومي.
-          </div>
-        )}
-
-        <div className="rounded-lg bg-surface-2 p-3 text-center border border-line">
-          <div className="text-muted">المبلغ المتبقي المطلوب</div>
-          <div className="mt-1 font-mono text-2xl font-bold text-accent">
-            <Money value={suggestedDue} />
-          </div>
-        </div>
-
-        <Field label="المبلغ المدفوع الآن" htmlFor="sheet-pay-amount">
-          <Input
-            id="sheet-pay-amount"
-            autoFocus
-            inputMode="decimal"
-            className="h-12 text-center text-xl font-mono font-bold"
-            value={amountStr}
-            onChange={(e) => setAmountStr(e.target.value)}
-            placeholder={f.money(suggestedDue)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmitPay()}
-          />
-        </Field>
-
-        <Segmented
-          size="md"
-          value={method}
-          onChange={setMethod}
-          options={[
-            {
-              value: 'cash',
-              label: (
-                <span className="flex items-center gap-1.5">
-                  <Banknote className="size-4" /> كاش
-                </span>
-              ),
-            },
-            {
-              value: 'card',
-              label: (
-                <span className="flex items-center gap-1.5">
-                  <CreditCard className="size-4" /> فيزا / كليك
-                </span>
-              ),
-            },
-          ]}
-        />
-
-        <div className="flex flex-col gap-2 border-t border-line pt-3">
-          <Button
-            variant="primary"
-            size="lg"
-            loading={busy}
-            disabled={!hasOpenShift || !minor || minor <= 0}
-            onClick={handleSubmitPay}
-            block
-          >
-            {hasOpenShift ? (
-              <>تأكيد استلام المبلغ (<Money value={minor || 0} />) ✓</>
-            ) : (
-              'يجب فتح الوردية أولاً'
+    <Modal open onOpenChange={(o) => !o && onClose()} title={title} size="sm">
+      <div className="flex flex-col gap-3 font-sans">
+        {!data || !totals ? (
+          <Skeleton className="h-56" />
+        ) : (
+          <>
+            {running && (
+              <p className="rounded-control border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
+                {t('sheetPay.endsNow')}
+              </p>
             )}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onCheckout} block className="text-muted text-[11px]">
-            فتح شاشة المحاسبة والطباعة الكاملة...
-          </Button>
-        </div>
+
+            <div className="flex flex-col rounded-card border border-line bg-surface-2 px-3 py-1.5">
+              <Row label={t('sheetPay.played')} value={<span className="text-fg">{f.span(data.time.playedMs)}</span>} />
+              {data.time.billableMs !== data.time.playedMs && (
+                <Row label={t('sheetPay.billed')} value={<span className="font-semibold text-fg">{f.span(data.time.billableMs)}</span>} />
+              )}
+              <Row label={t('sheetPay.play')} value={<Money value={data.time.total} className="text-fg" />} />
+              {totals.itemsTotal > 0 && <Row label={t('sheetPay.cafe')} value={<Money value={totals.itemsTotal} className="text-fg" />} />}
+              {totals.rounding !== 0 && <Row muted label={t('checkout.rounding')} value={<Money value={totals.rounding} />} />}
+              {totals.paid > 0 && (
+                <Row
+                  label={t('sheetPay.paidBefore')}
+                  value={
+                    <span className="text-st-free">
+                      −<Money value={totals.paid} />
+                    </span>
+                  }
+                />
+              )}
+            </div>
+
+            <div className="text-center">
+              <div className="text-xs text-muted">{t('sheetPay.due')}</div>
+              <div className="mt-1 font-mono text-3xl font-bold text-accent">
+                <Money value={Math.max(0, due)} currency />
+              </div>
+            </div>
+
+            <Segmented
+              size="lg"
+              value={method}
+              onChange={setMethod}
+              ariaLabel={t('sheetPay.header')}
+              options={[
+                {
+                  value: 'cash',
+                  label: (
+                    <span className="flex items-center gap-1.5">
+                      <Banknote className="size-4" /> {t('sheetPay.cash')}
+                    </span>
+                  ),
+                },
+                {
+                  value: 'card',
+                  label: (
+                    <span className="flex items-center gap-1.5">
+                      <Smartphone className="size-4" /> {t('sheetPay.cliq')}
+                    </span>
+                  ),
+                },
+              ]}
+            />
+
+            {due > 0 && !hasOpenShift && (
+              <p data-status="ending" className="tint rounded-control border px-3 py-2 text-xs font-semibold st-fg">
+                {t('sheetPay.noShift')}
+              </p>
+            )}
+            {due < 0 && <p className="rounded-control border border-line px-3 py-2 text-xs text-muted">{t('sheetPay.refundFull')}</p>}
+            {data.reward && (
+              <p data-status="free" className="tint flex items-center gap-1.5 rounded-control border px-3 py-2 text-xs font-semibold">
+                <Gift className="size-3.5 shrink-0" aria-hidden /> {t('sheetPay.rewardWaiting')}
+              </p>
+            )}
+
+            <Button variant="primary" size="lg" block loading={busy} disabled={blocked} onClick={confirm}>
+              {t('sheetPay.confirm', { method: methodLabel })}
+            </Button>
+            <Button variant="ghost" size="sm" block onClick={onFullCheckout} className="text-muted">
+              {t('sheetPay.fullCheckout')}
+            </Button>
+          </>
+        )}
       </div>
     </Modal>
   );
+}
+
+/** What a checkout answers, plus the number to send the bill to. */
+interface SettleDone {
+  billId: string;
+  number: number;
+  reward?: { id: string; minutes: number; playedMinutes: number; name: string; phone: string } | null;
+  phone?: string | null;
 }
 
 /**

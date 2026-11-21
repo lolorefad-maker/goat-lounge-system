@@ -255,6 +255,61 @@ input[type='time']::-webkit-date-and-time-value {
   box-shadow: inset 2px 0 0 var(--accent), inset -2px 0 0 var(--accent);
 }
 
+/* ------------------------------------------------------------------ backdrop
+ * Behind the app: the GOAT logo as a faint watermark and the controller shapes (✕ △ ○ □) in the
+ * logo's red and blue, drifting slowly. Kept faint so the floor stays calm and readable.
+ */
+:root {
+  --goat-blue: #1d72cf;
+  --goat-shape-opacity: 0.2;
+  --goat-watermark-opacity: 0.09;
+}
+[data-theme='dark'] {
+  --goat-shape-opacity: 0.24;
+  --goat-watermark-opacity: 0.07;
+}
+.goat-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.goat-shape {
+  position: absolute;
+  color: var(--accent);
+  opacity: var(--goat-shape-opacity);
+  animation: goat-float var(--dur, 26s) ease-in-out var(--delay, 0s) infinite alternate;
+  will-change: transform;
+}
+.goat-shape-alt {
+  color: var(--goat-blue);
+}
+.goat-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(46vw, 460px);
+  max-width: none;
+  translate: -50% -50%;
+  opacity: var(--goat-watermark-opacity);
+  mix-blend-mode: multiply;
+  user-select: none;
+  animation: goat-breathe 14s ease-in-out infinite alternate;
+}
+[data-theme='dark'] .goat-watermark {
+  mix-blend-mode: screen;
+  filter: grayscale(0.2);
+}
+@keyframes goat-float {
+  from { transform: translate3d(0, 0, 0) rotate(0deg); }
+  to { transform: translate3d(var(--dx, 30px), var(--dy, -60px), 0) rotate(var(--rot, 120deg)); }
+}
+@keyframes goat-breathe {
+  from { transform: scale(0.96) rotate(-2deg); }
+  to { transform: scale(1.04) rotate(2deg); }
+}
+
 /* ------------------------------------------------------------------ motion */
 @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
 @keyframes fade-out { from { opacity: 1 } to { opacity: 0 } }

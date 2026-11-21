@@ -307,6 +307,17 @@ function PoliciesTab({ data }: { data: SettingsBundle }) {
               ]}
             />
           </Field>
+          {s.billing.roundingMode === 'up' && s.billing.roundingMinutes > 1 && (
+            <Field label={t('settings.policy.roundingThreshold')} hint={t('settings.policy.roundingThresholdHint')} htmlFor="p-round-after">
+              <NumInput
+                id="p-round-after"
+                min={0}
+                max={Math.min(59, s.billing.roundingMinutes - 1)}
+                value={s.billing.roundingThresholdMinutes}
+                onChange={(v) => set('billing', { roundingThresholdMinutes: n(v) })}
+              />
+            </Field>
+          )}
           <Field label={t('settings.policy.earlyEnd')} className="sm:col-span-2">
             <Select value={s.billing.earlyEnd} onChange={(e) => set('billing', { earlyEnd: e.target.value as BranchSettings['billing']['earlyEnd'] })}>
               <option value="charge_actual">{t('settings.policy.charge_actual')}</option>

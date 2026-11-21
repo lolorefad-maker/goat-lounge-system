@@ -78,6 +78,13 @@
       "when": 1791054722339,
       "tag": "0010_cash_withdrawals",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795303127102,
+      "tag": "0011_hour_billing",
+      "breakpoints": true
     }
   ]
 }

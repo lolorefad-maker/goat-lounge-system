@@ -15,7 +15,7 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 
-// ../../node_modules/@lounge/core/src/errors.ts
+// ../../packages/core/src/errors.ts
 var DomainError = class extends Error {
   code;
   details;
@@ -27,7 +27,7 @@ var DomainError = class extends Error {
   }
 };
 
-// ../../node_modules/@lounge/core/src/money.ts
+// ../../packages/core/src/money.ts
 function roundToUnit(value, unit) {
   if (!unit || unit <= 1) return Math.round(value);
   return Math.round(value / unit) * unit;
@@ -47,10 +47,10 @@ function allocate(total, exact) {
   return out;
 }
 
-// ../../node_modules/@lounge/core/src/pricing.ts
+// ../../packages/core/src/pricing.ts
 import { z } from "zod";
 
-// ../../node_modules/@lounge/core/src/time.ts
+// ../../packages/core/src/time.ts
 import { DateTime } from "luxon";
 var MINUTE = 6e4;
 var HOUR = 36e5;
@@ -87,7 +87,7 @@ function businessDayRange(day, tz, cutoff) {
   return { start: start.toMillis(), end: end.toMillis() };
 }
 
-// ../../node_modules/@lounge/core/src/pricing.ts
+// ../../packages/core/src/pricing.ts
 var hhmm = z.string().regex(/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/, "HH:mm");
 var isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD");
 var ruleMatchSchema = z.object({
@@ -183,11 +183,16 @@ function pickTop(rules) {
 function quoteRate(rules, station2, mode, t, tz) {
   const applicable = rules.filter((r) => r.active && ruleAppliesAt(r, station2, mode, t, tz));
   const base = pickTop(applicable.filter((r) => r.effect.kind === "rate"));
-  if (!base || base.effect.kind !== "rate") return null;
-  const pct = pickTop(applicable.filter((r) => r.effect.kind === "percent"));
-  let perHour = base.effect.perHour;
-  if (pct && pct.effect.kind === "percent") perHour = perHour * (1 + pct.effect.percent / 100);
-  return { perHour: Math.max(0, perHour), baseRuleId: base.id, percentRuleId: pct?.id ?? null };
+  if (base && base.effect.kind === "rate") {
+    const pct = pickTop(applicable.filter((r) => r.effect.kind === "percent"));
+    let perHour = base.effect.perHour;
+    if (pct && pct.effect.kind === "percent") perHour = perHour * (1 + pct.effect.percent / 100);
+    return { perHour: Math.max(0, perHour), baseRuleId: base.id, percentRuleId: pct?.id ?? null };
+  }
+  if (mode === "gta6") {
+    return { perHour: 2500, baseRuleId: "gta6_fixed", percentRuleId: null };
+  }
+  return null;
 }
 function rateBoundaries(rules, a, b, tz) {
   if (b <= a) return [];
@@ -216,7 +221,7 @@ function packageMatches(pkg, station2, mode) {
   return inList(pkg.match.stationTypes, station2.type) && inList(pkg.match.tiers, station2.tier) && inList(pkg.match.modes, mode);
 }
 
-// ../../node_modules/@lounge/core/src/session.ts
+// ../../packages/core/src/session.ts
 function currentSegment(segments2) {
   const last = segments2.at(-1);
   return last && last.endedAt === null ? last : void 0;
@@ -269,13 +274,18 @@ function liveState(timeline, asOf, endingSoonMinutes) {
   return { status, playedMs, pausedMs, remainingMs, overtimeMs };
 }
 
-// ../../node_modules/@lounge/core/src/billing.ts
-function roundMs(ms, unitMinutes, mode) {
+// ../../packages/core/src/billing.ts
+function roundMs(ms, unitMinutes, mode, thresholdMinutes = 0) {
   const unit = Math.max(1, unitMinutes) * MINUTE;
   const q = ms / unit;
   const eps = 1e-9;
   if (mode === "down") return Math.floor(q + eps) * unit;
   if (mode === "nearest") return Math.round(q) * unit;
+  const threshold = Math.min(thresholdMinutes * MINUTE, unit - 1);
+  if (threshold > 0) {
+    const full = Math.floor(q + eps);
+    return (ms - full * unit > threshold ? full + 1 : full) * unit;
+  }
   return Math.ceil(q - eps) * unit;
 }
 function station(ctx2, id) {
@@ -358,7 +368,7 @@ function computeTimeBill(timeline, ctx2, asOf) {
     const minMs = p.minimumMinutes * MINUTE;
     const withMin = Math.max(base, minMs);
     if (withMin > base && !reason) reason = "minimum";
-    billableMs = Math.max(roundMs(withMin, p.roundingMinutes, p.roundingMode), minMs);
+    billableMs = Math.max(roundMs(withMin, p.roundingMinutes, p.roundingMode, p.roundingThresholdMinutes), minMs);
     if (billableMs !== withMin && !reason) reason = "rounding";
   }
   const lineExact = pieces.map((x) => (x.perHour ?? 0) * (x.to - x.from) / HOUR);
@@ -429,7 +439,7 @@ function computeTimeBill(timeline, ctx2, asOf) {
   };
 }
 
-// ../../node_modules/@lounge/core/src/checkout.ts
+// ../../packages/core/src/checkout.ts
 function discountPercentOf(discount, subtotal) {
   if (!discount || subtotal <= 0) return 0;
   return discount.kind === "percent" ? discount.value : discount.value / subtotal * 100;
@@ -462,12 +472,12 @@ function computeCheckout(input) {
   };
 }
 
-// ../../node_modules/@lounge/core/src/controllers.ts
+// ../../packages/core/src/controllers.ts
 function isCharged(c, now) {
   return c.status === "charging" && c.readyAt != null && now >= c.readyAt;
 }
 
-// ../../node_modules/@lounge/core/src/policies.ts
+// ../../packages/core/src/policies.ts
 import { z as z2 } from "zod";
 var hhmm2 = z2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "HH:mm");
 var billingPolicySchema = z2.object({
@@ -478,6 +488,11 @@ var billingPolicySchema = z2.object({
   /** Billing unit: 1 = per minute, 15 = blocks of 15 minutes. */
   roundingMinutes: z2.number().int().min(1).max(60).default(1),
   roundingMode: z2.enum(["up", "nearest", "down"]).default("up"),
+  /**
+   * Rounding up only: a started unit counts once more than this many minutes of it were played
+   * (0 = from the first second). E.g. unit 60 + threshold 20 + minimum 60: 1:05 → 1 h, 1:21 → 2 h.
+   */
+  roundingThresholdMinutes: z2.number().int().min(0).max(59).default(0),
   /** What a fixed (pre-booked) session pays when it ends before its planned time. */
   earlyEnd: z2.enum(["charge_actual", "charge_full", "actual_with_min"]).default("charge_actual"),
   earlyEndMinMinutes: z2.number().int().min(0).max(600).default(30),
@@ -553,7 +568,7 @@ function parseBranchSettings(raw) {
 }
 var defaultBranchSettings = () => branchSettingsSchema.parse({});
 
-// ../../node_modules/@lounge/core/src/reservations.ts
+// ../../packages/core/src/reservations.ts
 function evaluateCancellation(r, now, policy) {
   const late = r.startAt - now < policy.freeCancelMinutes * MINUTE;
   let fee = 0;
@@ -580,7 +595,7 @@ function overlaps(aStart, aMinutes, bStart, bMinutes) {
   return aStart < bEnd && bStart < aEnd;
 }
 
-// ../../node_modules/@lounge/core/src/rewards.ts
+// ../../packages/core/src/rewards.ts
 function normalizePhone(raw, countryCode) {
   const text2 = (raw ?? "").trim().replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 1776));
   if (!text2) return null;
@@ -4910,8 +4925,16 @@ async function seedIfEmpty(db, opts) {
   const orgId = newId();
   const branchId = newId();
   const settings = defaultBranchSettings();
-  settings.billing.graceMinutes = 3;
-  settings.billing.roundingMinutes = 5;
+  if (opts.demo) {
+    settings.billing.graceMinutes = 3;
+    settings.billing.roundingMinutes = 5;
+  } else {
+    settings.billing.graceMinutes = 1;
+    settings.billing.minimumMinutes = 60;
+    settings.billing.roundingMinutes = 60;
+    settings.billing.roundingMode = "up";
+    settings.billing.roundingThresholdMinutes = 20;
+  }
   settings.checkout.cashRounding = 50;
   settings.checkout.refundApprovalAbove = 2e3;
   await db.transaction(async (tx) => {

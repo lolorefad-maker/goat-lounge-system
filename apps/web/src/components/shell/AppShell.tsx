@@ -33,7 +33,8 @@ import { onLiveEvent, useConn, useRealtime } from '../../lib/realtime';
 import { installAudioUnlock } from '../../lib/sound';
 import { useStockWarnings } from '../../features/cafe/products';
 import { Num } from '../ui/primitives';
-import { LogoMark, Wordmark } from './Brand';
+import { Backdrop } from './Backdrop';
+import { LogoMark } from './Brand';
 import { ShiftPill } from './ShiftPill';
 import { SoundToggle } from './SoundToggle';
 
@@ -74,34 +75,37 @@ export function AppShell() {
   const mobileCount = items.filter((n) => n.mobile).length;
 
   return (
-    <div className="flex h-full min-h-0">
-      {/* Side navigation: icon rail on tablets, labels on wide screens */}
-      <aside className="no-print hidden shrink-0 flex-col border-e border-line bg-surface-1 md:flex md:w-[84px] xl:w-[216px]">
-        <div className="flex h-16 items-center gap-2.5 px-4 xl:px-5">
+    <div className="relative flex h-full min-h-0">
+      {/* GOAT logo + drifting controller shapes behind everything */}
+      <Backdrop />
+
+      {/* Side navigation: a compact rail (icon above a short label) on every screen size */}
+      <aside className="no-print relative z-10 hidden w-[76px] shrink-0 flex-col border-e border-line bg-surface-1/90 backdrop-blur md:flex">
+        <div className="flex h-16 items-center justify-center" title={t('app.name')}>
           <LogoMark />
-          <Wordmark className="hidden text-base xl:inline" />
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-2.5 py-2 xl:px-3">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-1.5 py-2">
           {items.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
+              title={t(n.label)}
               className={({ isActive }) =>
                 clsx(
-                  'group flex flex-col items-center gap-1 rounded-card px-2 py-2.5 text-[11px] font-medium transition-colors xl:flex-row xl:gap-3 xl:px-3 xl:text-sm',
+                  'group flex flex-col items-center gap-1 rounded-card px-1 py-2 text-[10.5px] font-medium leading-tight transition-colors',
                   isActive ? 'bg-accent text-accent-fg shadow-[0_6px_16px_-8px_var(--accent)]' : 'text-muted hover:bg-surface-2 hover:text-fg',
                 )
               }
             >
               <n.icon className="size-5 shrink-0" aria-hidden />
-              <span className="truncate">{t(n.label)}</span>
+              <span className="max-w-full truncate">{t(n.short ?? n.label)}</span>
             </NavLink>
           ))}
         </nav>
-        <div className="p-3 text-center text-[10px] text-faint xl:text-start">v0.1</div>
+        <div className="p-2 text-center text-[10px] text-faint">v0.1</div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <header className="no-print flex h-16 shrink-0 items-center gap-3 border-b border-line bg-surface-1/80 px-4 backdrop-blur md:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="md:hidden">

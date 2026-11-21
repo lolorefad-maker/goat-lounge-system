@@ -21,8 +21,11 @@ interface CheckoutDone {
   late?: { amount: number; cash: number; shiftId: string; userName: string; closedAt: number | null } | null;
   /** A free hour this checkout earned for the customer (ready to tell them on WhatsApp). */
   reward?: { id: string; minutes: number; playedMinutes: number; name: string; phone: string } | null;
+  /** The customer's number (normalized), kept on this screen to send the bill on WhatsApp. */
+  phone?: string | null;
 }
 import { TimeLines } from './BillBreakdown';
+import { BillWhatsAppButton } from './BillWhatsAppButton';
 import { printReceipt } from './receipt';
 
 /**
@@ -118,7 +121,9 @@ function CheckoutInner({ sessionId, onClose }: { sessionId: string; onClose: () 
         (pin) => post<CheckoutDone>(`/api/sessions/${sessionId}/checkout`, { ...body, approvalPin: pin }),
         discount && !reward ? `${t('checkout.discount')} ${discount.kind === 'percent' ? `${discount.value}%` : f.money(discount.value)}` : due < 0 ? `${t('checkout.refund')} ${f.money(-due)}` : '',
       );
-      setDone(res);
+      // The number behind this bill: registered on the device, or typed just now.
+      const waPhone = data?.customer?.phone ?? (askPhone && phoneOk && policy ? normalizePhone(phone, policy.countryCode) : null);
+      setDone({ ...res, phone: res.reward?.phone ?? waPhone });
     } catch (err) {
       if (err instanceof ApiError && err.code === 'cancelled') return;
       setError(errorMessage(err));
@@ -142,6 +147,8 @@ function CheckoutInner({ sessionId, onClose }: { sessionId: string; onClose: () 
             <CircleCheck className="size-9" />
           </span>
           <p className="text-lg font-semibold">{t('checkout.success', { n: done.number })}</p>
+          {/* The device had a number: send the bill on WhatsApp. */}
+          {done.phone && <BillWhatsAppButton billId={done.billId} phone={done.phone} block />}
           {change != null && change > 0 && (
             <p className="text-muted">
               {t('checkout.change')}: <Money value={change} currency className="font-semibold text-fg" />

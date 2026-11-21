@@ -42,6 +42,37 @@ describe('open time', () => {
     expect(sumLines(b)).toBe(b.subtotal);
   });
 
+  describe('hour billing: first hour after 1 minute, each next hour after 20 minutes', () => {
+    const shop = { graceMinutes: 1, minimumMinutes: 60, roundingMinutes: 60, roundingMode: 'up' as const, roundingThresholdMinutes: 20 };
+    const bill = (to: string) =>
+      computeTimeBill(open(seg('ps-1', 'single', '2026-09-25T18:00', to)), ctx({ policy: shop }), at(to));
+
+    it.each([
+      ['2026-09-25T18:00:50', 0, 0], // under a minute: started by mistake
+      ['2026-09-25T18:02', 1, 3000],
+      ['2026-09-25T18:30', 1, 3000],
+      ['2026-09-25T19:05', 1, 3000], // 1:05
+      ['2026-09-25T19:20', 1, 3000], // 1:20 — not more than 20 minutes yet
+      ['2026-09-25T19:21', 2, 6000], // 1:21
+      ['2026-09-25T20:20', 2, 6000], // 2:20
+      ['2026-09-25T20:21', 3, 9000], // 2:21
+    ])('%s → %i h', (to, hours, total) => {
+      const b = bill(to);
+      expect(b.billableMs).toBe(hours * 3_600_000);
+      expect(b.total).toBe(total);
+      expect(sumLines(b)).toBe(b.subtotal);
+    });
+
+    it('a threshold does nothing when rounding is not up', () => {
+      const b = computeTimeBill(
+        open(seg('ps-1', 'single', '2026-09-25T18:00', '2026-09-25T19:10')),
+        ctx({ policy: { roundingMinutes: 60, roundingMode: 'nearest', roundingThresholdMinutes: 20 } }),
+        at('2026-09-25T19:10'),
+      );
+      expect(b.billableMs).toBe(3_600_000);
+    });
+  });
+
   it('keeps counting while running and reports the live rate', () => {
     const b = computeTimeBill(open(seg('ps-1', 'multi', '2026-09-25T18:00', null)), ctx(), at('2026-09-25T18:30'));
     expect(b.ended).toBe(false);

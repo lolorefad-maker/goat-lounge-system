@@ -16,6 +16,11 @@ export const billingPolicySchema = z.object({
   /** Billing unit: 1 = per minute, 15 = blocks of 15 minutes. */
   roundingMinutes: z.number().int().min(1).max(60).default(1),
   roundingMode: z.enum(['up', 'nearest', 'down']).default('up'),
+  /**
+   * Rounding up only: a started unit counts once more than this many minutes of it were played
+   * (0 = from the first second). E.g. unit 60 + threshold 20 + minimum 60: 1:05 → 1 h, 1:21 → 2 h.
+   */
+  roundingThresholdMinutes: z.number().int().min(0).max(59).default(0),
   /** What a fixed (pre-booked) session pays when it ends before its planned time. */
   earlyEnd: z.enum(['charge_actual', 'charge_full', 'actual_with_min']).default('charge_actual'),
   earlyEndMinMinutes: z.number().int().min(0).max(600).default(30),

@@ -68,12 +68,18 @@ interface Piece {
   percentRuleId: string | null;
 }
 
-function roundMs(ms: number, unitMinutes: number, mode: BillingPolicy['roundingMode']): number {
+function roundMs(ms: number, unitMinutes: number, mode: BillingPolicy['roundingMode'], thresholdMinutes = 0): number {
   const unit = Math.max(1, unitMinutes) * MINUTE;
   const q = ms / unit;
   const eps = 1e-9;
   if (mode === 'down') return Math.floor(q + eps) * unit;
   if (mode === 'nearest') return Math.round(q) * unit;
+  const threshold = Math.min(thresholdMinutes * MINUTE, unit - 1);
+  if (threshold > 0) {
+    // A started unit counts only once more than `threshold` of it was played.
+    const full = Math.floor(q + eps);
+    return (ms - full * unit > threshold ? full + 1 : full) * unit;
+  }
   return Math.ceil(q - eps) * unit;
 }
 
@@ -181,7 +187,7 @@ export function computeTimeBill(timeline: SessionTimeline, ctx: BillingContext, 
     const withMin = Math.max(base, minMs);
     if (withMin > base && !reason) reason = 'minimum';
     // Rounding down must never undercut the minimum.
-    billableMs = Math.max(roundMs(withMin, p.roundingMinutes, p.roundingMode), minMs);
+    billableMs = Math.max(roundMs(withMin, p.roundingMinutes, p.roundingMode, p.roundingThresholdMinutes), minMs);
     if (billableMs !== withMin && !reason) reason = 'rounding';
   }
 
