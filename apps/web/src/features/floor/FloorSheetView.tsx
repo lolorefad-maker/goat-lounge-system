@@ -48,6 +48,24 @@ import { rateNow, type StationView } from '../../lib/live';
 import { useProducts, useSessionBill } from '../../lib/queries';
 import type { Floor, FloorSession, Product, Station } from '../../lib/types';
 import { announceStock, useCart } from '../cafe/products';
+import { SheetFormatBar, cellFx } from './SheetFormatBar';
+import { useSheetFormat, type SheetCol } from './sheetFormat';
+
+/** Column letters row (click a letter to select the column for coloring). */
+const LETTER_HEADS: { col: SheetCol; cls: string; label?: string }[] = [
+  { col: 'A', cls: 'w-10' },
+  { col: 'B', cls: 'w-48' },
+  { col: 'C', cls: 'w-28' },
+  { col: 'D', cls: 'w-40' },
+  { col: 'E', cls: 'w-44' },
+  { col: 'F', cls: 'w-52 bg-amber-500/15 font-black text-amber-800 dark:text-amber-300', label: 'F [كافيتريا]' },
+  { col: 'G', cls: 'w-28' },
+  { col: 'H', cls: 'w-32' },
+  { col: 'I', cls: 'w-32' },
+  { col: 'J', cls: 'w-36 bg-accent/10 font-bold text-accent', label: 'J [تلقائي]' },
+  { col: 'K', cls: 'w-44' },
+  { col: 'L', cls: 'w-24' },
+];
 
 interface FloorSheetViewProps {
   floor: Floor;
@@ -98,6 +116,12 @@ export function FloorSheetView({
   const [paySession, setPaySession] = useState<{ session: FloorSession; stationName: string; due: number } | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<{ sessionId: string; currentPhone: string; currentName: string } | null>(null);
   const [adjustingSession, setAdjustingSession] = useState<{ sessionId: string; stationName: string; currentPlayedMinutes: number } | null>(null);
+
+  // Sheet format (text size + per-column colors), saved on this device
+  const fontScale = useSheetFormat((st) => st.fontScale);
+  const colFormats = useSheetFormat((st) => st.cols);
+  const [selCol, setSelCol] = useState<SheetCol | null>(null);
+  const fx = (col: SheetCol) => cellFx(colFormats[col], selCol === col);
 
   // Filter views
   const filteredViews = useMemo(() => {
@@ -248,48 +272,58 @@ export function FloorSheetView({
         </div>
       </div>
 
+      {/* Format bar: text size + column fill / text color */}
+      <SheetFormatBar selCol={selCol} onClearCol={() => setSelCol(null)} />
+
       {/* Spreadsheet Table Container */}
       <div className="overflow-x-auto rounded-card border-2 border-line-strong bg-surface-1 shadow-sm">
-        <table className="w-full min-w-[1100px] border-collapse text-start text-xs border border-line-strong">
+        <table
+          className="sheet-grid w-full min-w-[1100px] border-collapse text-start text-xs border border-line-strong"
+          style={{ '--sheet-fs': fontScale } as React.CSSProperties}
+        >
           {/* Table Header with Column Letters (Google Sheets Style) */}
           <thead>
-            {/* Letters Row */}
-            <tr className="border-b-2 border-line-strong bg-surface-2/90 text-center font-mono text-[10px] text-faint select-none">
-              <th className="w-10 border-e border-line-strong p-1">A</th>
-              <th className="w-48 border-e border-line-strong p-1">B</th>
-              <th className="w-28 border-e border-line-strong p-1">C</th>
-              <th className="w-40 border-e border-line-strong p-1">D</th>
-              <th className="w-44 border-e border-line-strong p-1">E</th>
-              <th className="w-52 border-e border-line-strong p-1 bg-amber-500/15 font-black text-amber-800 dark:text-amber-300">F [كافيتريا]</th>
-              <th className="w-28 border-e border-line-strong p-1">G</th>
-              <th className="w-32 border-e border-line-strong p-1">H</th>
-              <th className="w-32 border-e border-line-strong p-1">I</th>
-              <th className="w-36 border-e border-line-strong p-1 bg-accent/10 font-bold text-accent">J [تلقائي]</th>
-              <th className="w-44 border-e border-line-strong p-1">K</th>
-              <th className="w-24 p-1">L</th>
+            {/* Letters Row — a letter selects its column for coloring */}
+            <tr className="border-b-2 border-line-strong bg-surface-2/90 text-center font-mono sheet-text-10 text-faint select-none">
+              {LETTER_HEADS.map(({ col, cls, label }, i) => (
+                <th key={col} className={clsx(cls, 'p-0', i < LETTER_HEADS.length - 1 && 'border-e border-line-strong')}>
+                  <button
+                    type="button"
+                    onClick={() => setSelCol((c) => (c === col ? null : col))}
+                    aria-pressed={selCol === col}
+                    title={t('sheetFmt.selectColumn', { col })}
+                    className={clsx(
+                      'block w-full cursor-pointer p-1 transition-colors',
+                      selCol === col ? 'bg-accent text-accent-fg' : 'hover:bg-surface-3 hover:text-fg',
+                    )}
+                  >
+                    {label ?? col}
+                  </button>
+                </th>
+              ))}
             </tr>
             {/* Arabic Descriptive Header */}
-            <tr className="border-b-2 border-line-strong bg-surface-2 text-muted font-bold text-[12px]">
-              <th className="border-e border-line-strong px-2 py-2.5 text-center">#</th>
-              <th className="border-e border-line-strong px-3 py-2.5 text-start">الجهاز / الطاولة</th>
-              <th className="border-e border-line-strong px-3 py-2.5 text-center">الحالة</th>
-              <th className="border-e border-line-strong px-3 py-2.5 text-start">العميل / الحساب</th>
-              <th className="border-e border-line-strong px-3 py-2.5 text-center bg-emerald-500/5 text-emerald-700 dark:text-emerald-400">
+            <tr className="border-b-2 border-line-strong bg-surface-2 text-muted font-bold sheet-text-12">
+              <th {...fx('A')} className="border-e border-line-strong px-2 py-2.5 text-center">#</th>
+              <th {...fx('B')} className="border-e border-line-strong px-3 py-2.5 text-start">الجهاز / الطاولة</th>
+              <th {...fx('C')} className="border-e border-line-strong px-3 py-2.5 text-center">الحالة</th>
+              <th {...fx('D')} className="border-e border-line-strong px-3 py-2.5 text-start">العميل / الحساب</th>
+              <th {...fx('E')} className="border-e border-line-strong px-3 py-2.5 text-center bg-emerald-500/5 text-emerald-700 dark:text-emerald-400">
                 بدء اللعب ⏱️
               </th>
-              <th className="border-e border-line-strong px-3 py-2.5 text-start bg-amber-500/15 text-amber-900 dark:text-amber-200 font-black text-[13px] tracking-wide border-x-2 border-amber-500/40">
+              <th {...fx('F')} className="border-e border-line-strong px-3 py-2.5 text-start bg-amber-500/15 text-amber-900 dark:text-amber-200 font-black sheet-text-13 tracking-wide border-x-2 border-amber-500/40">
                 كافيتريا وطلبات 🥤🍟
               </th>
-              <th className="border-e border-line-strong px-3 py-2.5 text-center bg-rose-500/5 text-rose-700 dark:text-rose-400">
+              <th {...fx('G')} className="border-e border-line-strong px-3 py-2.5 text-center bg-rose-500/5 text-rose-700 dark:text-rose-400">
                 إنهاء اللعب ⏹️
               </th>
-              <th className="border-e border-line-strong px-3 py-2.5 text-end font-mono">حساب اللعب</th>
-              <th className="border-e border-line-strong px-3 py-2.5 text-end font-mono">حساب الكافيتريا</th>
-              <th className="border-e border-line-strong px-3 py-2.5 text-end font-mono bg-accent/15 text-accent font-black">
+              <th {...fx('H')} className="border-e border-line-strong px-3 py-2.5 text-end font-mono">حساب اللعب</th>
+              <th {...fx('I')} className="border-e border-line-strong px-3 py-2.5 text-end font-mono">حساب الكافيتريا</th>
+              <th {...fx('J')} className="border-e border-line-strong px-3 py-2.5 text-end font-mono bg-accent/15 text-accent font-black">
                 المجموع الكلي 💰
               </th>
-              <th className="border-e border-line-strong px-3 py-2.5 text-start">قديه حاسبه / التحصيل</th>
-              <th className="px-3 py-2.5 text-center">إجراءات</th>
+              <th {...fx('K')} className="border-e border-line-strong px-3 py-2.5 text-start">قديه حاسبه / التحصيل</th>
+              <th {...fx('L')} className="px-3 py-2.5 text-center">إجراءات</th>
             </tr>
           </thead>
 
@@ -338,36 +372,36 @@ export function FloorSheetView({
                     )}
                   >
                     {/* Column A: Row Number */}
-                    <td className="border-e border-line-strong px-2 py-2.5 text-center font-mono text-[11px] text-faint">
+                    <td {...fx('A')} className="border-e border-line-strong px-2 py-2.5 text-center font-mono sheet-text-11 text-faint">
                       {idx + 1}
                     </td>
 
                     {/* Column B: Station Name & Info */}
-                    <td className="border-e border-line-strong px-3 py-2">
+                    <td {...fx('B')} className="border-e border-line-strong px-3 py-2">
                       <div className="flex items-center gap-2">
                         <TypeIcon type={s.type} className="size-4 shrink-0 text-muted" />
                         <div>
                           <div className="flex items-center gap-1.5 font-bold text-fg">
                             <span>{s.name}</span>
                             {s.tier === 'vip' && (
-                              <span className="rounded bg-amber-500/20 px-1 py-0.2 text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                              <span className="rounded bg-amber-500/20 px-1 py-0.2 sheet-text-9 font-bold text-amber-600 dark:text-amber-400">
                                 VIP
                               </span>
                             )}
                           </div>
-                          <div className="text-[11px] text-muted">
+                          <div className="sheet-text-11 text-muted">
                             {s.zone ? <span>{s.zone} · </span> : null}
-                            <span className="font-mono text-[10px] text-faint">{rateStr}</span>
+                            <span className="font-mono sheet-text-10 text-faint">{rateStr}</span>
                           </div>
                         </div>
                       </div>
                     </td>
 
                     {/* Column C: Status Badge */}
-                    <td className="border-e border-line-strong px-2 py-2 text-center">
+                    <td {...fx('C')} className="border-e border-line-strong px-2 py-2 text-center">
                       <span
                         className={clsx(
-                          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 sheet-text-11 font-semibold',
                           v.status === 'free' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
                           v.status === 'active' && 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
                           v.status === 'paused' && 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
@@ -397,12 +431,12 @@ export function FloorSheetView({
                     </td>
 
                     {/* Column D: Customer */}
-                    <td className="border-e border-line-strong px-3 py-2">
+                    <td {...fx('D')} className="border-e border-line-strong px-3 py-2">
                       {session?.customer ? (
                         <div className="flex items-center justify-between gap-1">
                           <div>
                             <div className="font-medium text-fg">{session.customer.name || 'عميل'}</div>
-                            <div className="font-mono text-[10px] text-muted">+{session.customer.phone}</div>
+                            <div className="font-mono sheet-text-10 text-muted">+{session.customer.phone}</div>
                           </div>
                           {canManage && (
                             <button
@@ -429,7 +463,7 @@ export function FloorSheetView({
                               currentName: session.label ?? '',
                             })
                           }
-                          className="flex items-center gap-1 text-[11px] text-muted hover:text-accent"
+                          className="flex items-center gap-1 sheet-text-11 text-muted hover:text-accent"
                         >
                           <User className="size-3" />
                           <span>{session.label ? session.label : '+ إضافة اسم/رقم'}</span>
@@ -440,14 +474,15 @@ export function FloorSheetView({
                     </td>
 
                     {/* Column E: Start Cell (بدء اللعب مع خيار فردي / زوجي) */}
-                    <td className="border-e border-line-strong px-2 py-1.5 text-center bg-emerald-500/5">
+                    <td {...fx('E')} className="border-e border-line-strong px-2 py-1.5 text-center bg-emerald-500/5">
                       {isRunning ? (
                         <div className="flex flex-col items-center justify-center gap-1">
                           {/* Current Mode Badge + Quick 1-click Switch */}
                           <div className="flex items-center gap-1">
                             <span
+                              data-solid
                               className={clsx(
-                                'inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold text-white shadow-xs',
+                                'inline-flex items-center gap-1 rounded px-2 py-0.5 sheet-text-10 font-bold text-white shadow-xs',
                                 currentSessionMode === 'gta6'
                                   ? 'bg-amber-600'
                                   : currentSessionMode === 'multi'
@@ -471,7 +506,7 @@ export function FloorSheetView({
                                   <button
                                     type="button"
                                     onClick={() => onChangeMode(session.id, 'single')}
-                                    className="rounded border border-line bg-surface-2 px-1 py-0.5 text-[9px] font-semibold text-muted hover:border-accent hover:text-accent transition-colors"
+                                    className="rounded border border-line bg-surface-2 px-1 py-0.5 sheet-text-9 font-semibold text-muted hover:border-accent hover:text-accent transition-colors"
                                     title="تبديل اللعب إلى فردي"
                                   >
                                     فردي
@@ -481,7 +516,7 @@ export function FloorSheetView({
                                   <button
                                     type="button"
                                     onClick={() => onChangeMode(session.id, 'multi')}
-                                    className="rounded border border-line bg-surface-2 px-1 py-0.5 text-[9px] font-semibold text-muted hover:border-accent hover:text-accent transition-colors"
+                                    className="rounded border border-line bg-surface-2 px-1 py-0.5 sheet-text-9 font-semibold text-muted hover:border-accent hover:text-accent transition-colors"
                                     title="تبديل اللعب إلى زوجي"
                                   >
                                     زوجي
@@ -491,7 +526,7 @@ export function FloorSheetView({
                                   <button
                                     type="button"
                                     onClick={() => onChangeMode(session.id, 'gta6')}
-                                    className="rounded border border-amber-500/50 bg-amber-500/10 px-1 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
+                                    className="rounded border border-amber-500/50 bg-amber-500/10 px-1 py-0.5 sheet-text-9 font-bold text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
                                     title="تبديل اللعب إلى GTA 6 (2.50 د.أ)"
                                   >
                                     GTA 6
@@ -541,7 +576,7 @@ export function FloorSheetView({
                                 });
                               }
                             }}
-                            className="text-[10px] text-muted hover:text-accent flex items-center gap-0.5 transition-colors cursor-pointer"
+                            className="sheet-text-10 text-muted hover:text-accent flex items-center gap-0.5 transition-colors cursor-pointer"
                             title="اضغط لتعديل وقت البدء أو الدقائق"
                           >
                             <span>بدء: {f.time(session.startedAt)}</span>
@@ -553,7 +588,8 @@ export function FloorSheetView({
                           <button
                             type="button"
                             onClick={() => setStartModalStation({ station: s, defaultMode: 'single' })}
-                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 text-xs font-black text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
+                            data-solid
+                            className="inline-flex min-h-8 whitespace-nowrap items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 text-xs font-black text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
                             title="بدء تشغيل الجهاز واختيار نوع اللعبة (فردي / زوجي / GTA 6)"
                           >
                             <Play className="size-3.5 fill-current" />
@@ -564,12 +600,12 @@ export function FloorSheetView({
                     </td>
 
                     {/* Column F: Cafeteria (كافيتريا بين البدء والإنهاء بخط عريض وواضح) */}
-                    <td className="border-e border-line-strong px-2.5 py-1.5 bg-amber-500/10 dark:bg-amber-500/15">
+                    <td {...fx('F')} className="border-e border-line-strong px-2.5 py-1.5 bg-amber-500/10 dark:bg-amber-500/15">
                       {hasSession ? (
                         <div className="flex items-center justify-between gap-2">
                           <button
                             onClick={() => setCafeSession({ session, stationName: s.name })}
-                            className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border-2 border-amber-500/70 bg-amber-500/25 px-2.5 text-xs font-black text-amber-950 dark:text-amber-100 hover:bg-amber-500/40 active:scale-95 transition-all shadow-xs"
+                            className="inline-flex min-h-8 whitespace-nowrap flex-1 items-center justify-center gap-1.5 rounded-md border-2 border-amber-500/70 bg-amber-500/25 px-2.5 text-xs font-black text-amber-950 dark:text-amber-100 hover:bg-amber-500/40 active:scale-95 transition-all shadow-xs"
                             title="فتح قائمة الكافيتريا لاختيار الطلبات"
                           >
                             <Coffee className="size-4 text-amber-700 dark:text-amber-300 stroke-[2.5]" />
@@ -592,7 +628,7 @@ export function FloorSheetView({
                           onClick={() => {
                             toast.info('قم ببدء الجهاز أولاً لإضافة طلبات كافيتريا إليه أو افتح صفحة الكافيتيريا للبيع المباشر');
                           }}
-                          className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border-2 border-dashed border-amber-500/40 text-xs font-black text-muted/70 hover:text-fg hover:border-amber-500/70"
+                          className="inline-flex min-h-8 whitespace-nowrap w-full items-center justify-center gap-1.5 rounded-md border-2 border-dashed border-amber-500/40 text-xs font-black text-muted/70 hover:text-fg hover:border-amber-500/70"
                         >
                           <Coffee className="size-3.5 opacity-50" />
                           <span className="font-black text-xs">كافيتريا</span>
@@ -601,18 +637,19 @@ export function FloorSheetView({
                     </td>
 
                     {/* Column G: End Cell (إنهاء اللعب) */}
-                    <td className="border-e border-line-strong px-2 py-1.5 text-center bg-rose-500/5">
+                    <td {...fx('G')} className="border-e border-line-strong px-2 py-1.5 text-center bg-rose-500/5">
                       {isRunning ? (
                         <button
                           onClick={() => onQuickCheckout(session.id)}
-                          className="inline-flex h-7 items-center gap-1 rounded bg-rose-600 px-3 text-[11px] font-bold text-white shadow-sm hover:bg-rose-700 active:scale-95 transition-all"
+                          data-solid
+                          className="inline-flex min-h-7 whitespace-nowrap items-center gap-1 rounded bg-rose-600 px-3 sheet-text-11 font-bold text-white shadow-sm hover:bg-rose-700 active:scale-95 transition-all"
                           title="إنهاء الجلسة وحساب الوقت"
                         >
                           <Square className="size-3 fill-current" />
                           <span>إنهاء ⏹️</span>
                         </button>
                       ) : isEnded ? (
-                        <div className="flex flex-col items-center text-[10px] text-muted">
+                        <div className="flex flex-col items-center sheet-text-10 text-muted">
                           <span className="font-semibold text-rose-600">منتهي</span>
                           <span>{session.endedAt ? f.time(session.endedAt) : ''}</span>
                         </div>
@@ -622,25 +659,25 @@ export function FloorSheetView({
                     </td>
 
                     {/* Column H: Play Cost (حساب اللعب) */}
-                    <td className="border-e border-line-strong px-3 py-2 text-end font-mono font-semibold">
+                    <td {...fx('H')} className="border-e border-line-strong px-3 py-2 text-end font-mono font-semibold">
                       {hasSession ? <Money value={playCost} /> : <span className="text-faint">0.00</span>}
                     </td>
 
                     {/* Column I: Cafeteria Cost (حساب الكافيتريا) */}
-                    <td className="border-e border-line-strong px-3 py-2 text-end font-mono font-bold text-amber-700 dark:text-amber-400">
+                    <td {...fx('I')} className="border-e border-line-strong px-3 py-2 text-end font-mono font-bold text-amber-700 dark:text-amber-400">
                       {hasSession && cafeCost > 0 ? <Money value={cafeCost} /> : <span className="text-faint">0.00</span>}
                     </td>
 
                     {/* Column J: Total Bill (المجموع الكلي - يحسب لحاله) */}
-                    <td className="border-e border-line-strong px-3 py-2 text-end font-mono font-black text-sm bg-accent/10 text-accent">
+                    <td {...fx('J')} className="border-e border-line-strong px-3 py-2 text-end font-mono font-black text-sm bg-accent/10 text-accent">
                       {hasSession ? <Money value={totalCost} /> : <span className="text-faint">0.00</span>}
                     </td>
 
                     {/* Column K: Paid & Accounting (قديه حاسبه) */}
-                    <td className="border-e border-line-strong px-2 py-1.5">
+                    <td {...fx('K')} className="border-e border-line-strong px-2 py-1.5">
                       {hasSession ? (
                         <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex flex-col text-[11px]">
+                          <div className="flex flex-col sheet-text-11">
                             <span className="text-muted">
                               المدفوع: <Money value={paid} className="font-semibold text-fg" />
                             </span>
@@ -658,7 +695,7 @@ export function FloorSheetView({
                           {due > 0 && (
                             <button
                               onClick={() => setPaySession({ session, stationName: s.name, due })}
-                              className="inline-flex h-7 items-center gap-1 rounded bg-surface-2 border border-line px-2 text-[10px] font-bold text-fg hover:border-accent hover:text-accent active:scale-95 transition-all shadow-sm"
+                              className="inline-flex min-h-7 whitespace-nowrap items-center gap-1 rounded bg-surface-2 border border-line px-2 sheet-text-10 font-bold text-fg hover:border-accent hover:text-accent active:scale-95 transition-all shadow-sm"
                               title="تسجيل دفعة نقدية أو فيزا"
                             >
                               <Banknote className="size-3" />
@@ -672,7 +709,7 @@ export function FloorSheetView({
                     </td>
 
                     {/* Column L: Actions */}
-                    <td className="px-2 py-1.5 text-center">
+                    <td {...fx('L')} className="px-2 py-1.5 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => {
@@ -695,33 +732,33 @@ export function FloorSheetView({
           {/* Table Footer: Totals Row (Google Sheets Formula Sum) */}
           <tfoot>
             <tr className="border-t-2 border-line-strong bg-surface-2 font-bold text-xs">
-              <td className="border-e border-line-strong px-2 py-3 text-center font-mono">Σ</td>
-              <td className="border-e border-line-strong px-3 py-3 text-start">
+              <td {...fx('A')} className="border-e border-line-strong px-2 py-3 text-center font-mono">Σ</td>
+              <td {...fx('B')} className="border-e border-line-strong px-3 py-3 text-start">
                 <span>المجموع الكلي ({totals.totalStations} أجهزة)</span>
               </td>
-              <td className="border-e border-line-strong px-2 py-3 text-center text-muted">
+              <td {...fx('C')} className="border-e border-line-strong px-2 py-3 text-center text-muted">
                 <span>{totals.activeCount} شغال · {totals.freeCount} متاح</span>
               </td>
-              <td className="border-e border-line-strong px-3 py-3 text-muted">-</td>
-              <td className="border-e border-line-strong px-2 py-3 text-center text-emerald-600">-</td>
-              <td className="border-e border-line-strong px-2 py-3 text-center text-amber-700 dark:text-amber-400 font-black">-</td>
-              <td className="border-e border-line-strong px-2 py-3 text-center text-rose-600">-</td>
-              <td className="border-e border-line-strong px-3 py-3 text-end font-mono">
+              <td {...fx('D')} className="border-e border-line-strong px-3 py-3 text-muted">-</td>
+              <td {...fx('E')} className="border-e border-line-strong px-2 py-3 text-center text-emerald-600">-</td>
+              <td {...fx('F')} className="border-e border-line-strong px-2 py-3 text-center text-amber-700 dark:text-amber-400 font-black">-</td>
+              <td {...fx('G')} className="border-e border-line-strong px-2 py-3 text-center text-rose-600">-</td>
+              <td {...fx('H')} className="border-e border-line-strong px-3 py-3 text-end font-mono">
                 <Money value={totals.playTotal} />
               </td>
-              <td className="border-e border-line-strong px-3 py-3 text-end font-mono text-amber-700 dark:text-amber-400 font-bold">
+              <td {...fx('I')} className="border-e border-line-strong px-3 py-3 text-end font-mono text-amber-700 dark:text-amber-400 font-bold">
                 <Money value={totals.cafeTotal} />
               </td>
-              <td className="border-e border-line-strong px-3 py-3 text-end font-mono text-sm bg-accent/15 text-accent font-black">
+              <td {...fx('J')} className="border-e border-line-strong px-3 py-3 text-end font-mono text-sm bg-accent/15 text-accent font-black">
                 <Money value={totals.grandTotal} />
               </td>
-              <td className="border-e border-line-strong px-3 py-3">
-                <div className="flex flex-col text-[11px]">
+              <td {...fx('K')} className="border-e border-line-strong px-3 py-3">
+                <div className="flex flex-col sheet-text-11">
                   <span>المقبوض: <Money value={totals.paidTotal} /></span>
                   <span className="text-rose-600 dark:text-rose-400">المتبقي: <Money value={totals.dueTotal} /></span>
                 </div>
               </td>
-              <td className="px-2 py-3 text-center text-faint">✓</td>
+              <td {...fx('L')} className="px-2 py-3 text-center text-faint">✓</td>
             </tr>
           </tfoot>
         </table>

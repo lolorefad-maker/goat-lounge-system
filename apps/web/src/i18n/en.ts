@@ -57,6 +57,13 @@ export const en: Dict = {
     bookedFor: 'Booked for {name} · {time}', lateBy: '{n} min late', pauseNamed: 'Pause {name}', resumeNamed: 'Resume {name}',
     pausedToast: '{name}: clock paused', resumedToast: '{name}: clock running again', items: '{n} items', filterType: 'Type', freeOnly: 'Available only',
   },
+  sheetFmt: {
+    toolbar: 'Sheet format', fontSmaller: 'Smaller text', fontBigger: 'Bigger text', fontSize: 'Text size', fontReset: 'Reset text size to 100%',
+    pickColumn: 'Click a column letter (A, B, C…) to color it', column: 'Column {col}', selectColumn: 'Select column {col}', unselect: 'Clear column selection',
+    fill: 'Column color', text: 'Text color', noFill: 'No color', defaultText: 'Original color',
+    resetAll: 'Reset format', resetAllHint: 'Put the text size and every column color back as they were', savedHere: 'Format is saved on this device',
+    colors: { ink: 'Main text color', red: 'Red', orange: 'Orange', yellow: 'Yellow', green: 'Green', teal: 'Teal', blue: 'Blue', violet: 'Violet', pink: 'Pink', brown: 'Brown', gray: 'Gray' },
+  },
   start: {
     title: 'Start session', mode: 'Play mode', time: 'Time', custom: 'Custom', customer: 'Customer name', customerPh: 'Optional — e.g. Ahmad', phonePh: '079… — WhatsApp number',
     prepaid: 'Paid up front', prepaidAmount: 'Amount paid', estimate: 'Estimated price', endsAt: 'Ends at {time}', start: 'Start',

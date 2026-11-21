@@ -10,7 +10,7 @@ export type Theme = 'dark' | 'light';
 const dicts: Record<Lang, Dict> = { ar, en };
 
 /** Per-device preferences. Storage can be unavailable (private mode) — the app still works with defaults. */
-const safeStorage = createJSONStorage(() => {
+export const safeStorage = createJSONStorage(() => {
   try {
     const k = '__t';
     localStorage.setItem(k, k);

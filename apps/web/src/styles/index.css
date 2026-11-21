@@ -213,6 +213,48 @@ input[type='time']::-webkit-date-and-time-value {
 .st-bg { background: var(--st); }
 .st-soft { background: color-mix(in oklab, var(--st) 16%, transparent); color: var(--st); }
 
+/* ------------------------------------------------------------------ floor sheet format
+ * The cashier can enlarge the grid's text and give each column a fill / text color (per device,
+ * features/floor/sheetFormat.ts). Hues are mixed with the surface (fill) or the text color (text)
+ * at use, so one hue reads well in both themes.
+ */
+:root {
+  --pal-ink: var(--text);
+  --pal-red: #ef4444;
+  --pal-orange: #f97316;
+  --pal-yellow: #eab308;
+  --pal-green: #22c55e;
+  --pal-teal: #14b8a6;
+  --pal-blue: #3b82f6;
+  --pal-violet: #8b5cf6;
+  --pal-pink: #ec4899;
+  --pal-brown: #a16207;
+  --pal-gray: #71717a;
+}
+
+/* Text size: `--sheet-fs` on the grid scales Tailwind's text-xs / text-sm and the sheet-text-* sizes. */
+.sheet-grid {
+  --text-xs: calc(0.75rem * var(--sheet-fs, 1));
+  --text-sm: calc(0.875rem * var(--sheet-fs, 1));
+}
+@utility sheet-text-* {
+  font-size: calc(--value(integer) * 1px * var(--sheet-fs, 1));
+}
+
+/* Column colors: set --sheet-fill / --sheet-text to a --pal-* token and mark the cell. */
+[data-sheet-fill] {
+  background-color: color-mix(in oklab, var(--sheet-fill) 26%, var(--surface-1));
+}
+/* Text color reaches everything in the cell except solid controls (white on a filled button). */
+[data-sheet-text],
+[data-sheet-text] :not([data-solid], [data-solid] *) {
+  color: color-mix(in oklab, var(--sheet-text) 74%, var(--text));
+}
+/* Selected column: accent lines on both sides, like a spreadsheet selection. */
+[data-col-sel] {
+  box-shadow: inset 2px 0 0 var(--accent), inset -2px 0 0 var(--accent);
+}
+
 /* ------------------------------------------------------------------ motion */
 @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
 @keyframes fade-out { from { opacity: 1 } to { opacity: 0 } }
